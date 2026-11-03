@@ -20,6 +20,7 @@ mod convert;
 mod error;
 mod model;
 mod schema;
+mod validation;
 
 pub use convert::to_record_batch;
 pub use error::{Error, Result};
