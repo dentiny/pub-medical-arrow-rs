@@ -1,6 +1,6 @@
 [package]
 name = "pmc-io"
-description = "Reserved for PMC source ingestion and dataset output"
+description = "Async PDF ingestion for PMC Arrow through OpenDAL and byte streams"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -10,3 +10,10 @@ publish = false
 [dependencies]
 pmc-arrow.workspace = true
 opendal.workspace = true
+futures.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+arrow-array.workspace = true
+opendal = { workspace = true, features = ["services-fs"] }
+tokio = { workspace = true, features = ["macros", "rt", "fs", "io-std", "io-util"] }
