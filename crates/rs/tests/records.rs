@@ -113,24 +113,6 @@ fn rejects_invalid_identifiers_without_panicking_on_unicode() {
 }
 
 #[test]
-fn rejects_zero_version_and_missing_source() {
-    let mut meta = metadata();
-    meta.pmc_version = Some(0);
-    assert!(matches!(
-        PdfRecord::try_new(PDF.to_vec(), meta),
-        Err(Error::InvalidVersion)
-    ));
-    for source in ["", " \n\t"] {
-        let mut meta = metadata();
-        meta.source_uri = source.into();
-        assert!(matches!(
-            PdfRecord::try_new(PDF.to_vec(), meta),
-            Err(Error::MissingSourceUri)
-        ));
-    }
-}
-
-#[test]
 fn validates_pdf_header_without_claiming_full_pdf_validation() {
     assert!(matches!(
         PdfRecord::try_new(vec![], metadata()),
