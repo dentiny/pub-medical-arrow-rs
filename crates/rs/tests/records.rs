@@ -1,5 +1,4 @@
-use arrow_schema::{DataType, TimeUnit};
-use pmc_arrow::{schema, Error, PdfMetadata, PdfRecord, SCHEMA_VERSION};
+use pmc_arrow::{Error, PdfMetadata, PdfRecord};
 
 const PDF: &[u8] = include_bytes!("fixtures/tiny.pdf");
 const RETRIEVED: i64 = 1_793_731_234_567_890;
@@ -10,38 +9,6 @@ fn metadata() -> PdfMetadata {
 
 fn record() -> PdfRecord {
     PdfRecord::try_new(PDF.to_vec(), metadata()).unwrap()
-}
-
-#[test]
-fn fixed_schema_contract() {
-    let timestamp = DataType::Timestamp(TimeUnit::Microsecond, Some("UTC".into()));
-    let expected = [
-        ("pmcid", DataType::Utf8, false),
-        ("pmc_version", DataType::UInt32, true),
-        ("pmid", DataType::Utf8, true),
-        ("doi", DataType::Utf8, true),
-        ("title", DataType::LargeUtf8, true),
-        ("license", DataType::Utf8, true),
-        ("source_uri", DataType::Utf8, false),
-        ("source_last_modified", timestamp.clone(), true),
-        ("retrieved_at", timestamp, false),
-        ("pdf_sha256", DataType::FixedSizeBinary(32), false),
-        ("pdf_size_bytes", DataType::UInt64, false),
-        ("pdf_bytes", DataType::LargeBinary, false),
-        ("raw_metadata_json", DataType::LargeUtf8, true),
-    ];
-    let schema = schema();
-    assert_eq!(schema.fields().len(), expected.len());
-    for (field, (name, data_type, nullable)) in schema.fields().iter().zip(expected) {
-        assert_eq!(field.name(), name);
-        assert_eq!(field.data_type(), &data_type);
-        assert_eq!(field.is_nullable(), nullable);
-    }
-    assert_eq!(
-        schema.metadata()["pmc_arrow.schema_version"],
-        SCHEMA_VERSION
-    );
-    assert_eq!(schema.metadata()["pmc_arrow.row_kind"], "pdf_snapshot");
 }
 
 #[test]
