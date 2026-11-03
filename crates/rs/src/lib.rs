@@ -9,5 +9,5 @@ mod model;
 mod schema;
 
 pub use error::{Error, Result};
-pub use model::{PdfMetadata, PdfRecord};
+pub use model::{PdfMetadata, PdfRecord, Sha256Digest};
 pub use schema::{schema, SCHEMA_VERSION};

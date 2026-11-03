@@ -2,6 +2,9 @@ use sha2::{Digest, Sha256};
 
 use crate::{Error, Result};
 
+/// A SHA-256 digest stored as 32 raw bytes.
+pub type Sha256Digest = [u8; 32];
+
 /// Caller-supplied metadata for one PDF snapshot.
 ///
 /// Timestamps are signed microseconds since the Unix epoch in UTC. They are
@@ -56,7 +59,7 @@ impl PdfMetadata {
 pub struct PdfRecord {
     metadata: PdfMetadata,
     pdf_bytes: Vec<u8>,
-    pdf_sha256: [u8; 32],
+    pdf_sha256: Sha256Digest,
 }
 
 impl std::fmt::Debug for PdfRecord {
@@ -118,7 +121,7 @@ impl PdfRecord {
         &self.pdf_bytes
     }
 
-    pub fn pdf_sha256(&self) -> &[u8; 32] {
+    pub fn pdf_sha256(&self) -> &Sha256Digest {
         &self.pdf_sha256
     }
 
