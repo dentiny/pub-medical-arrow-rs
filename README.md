@@ -10,7 +10,7 @@ dataset storage.
 | Directory | Crate | Status |
 | --- | --- | --- |
 | `crates/rs` | `pmc-arrow` | Implemented: model, validation, schema and in-memory Arrow conversion |
-| `crates/io` | `pmc-io` | Implemented: async single-PDF reads via OpenDAL or byte streams |
+| `crates/io` | `pmc-io` | Implemented: async PDF and PMC metadata reads via OpenDAL or byte streams |
 | `crates/cli` | `pmc-cli` | Placeholder; exits with an explicit not-implemented error |
 
 Dependency declarations match the local `atif-arrow` workspace: Arrow `58` and
@@ -84,6 +84,27 @@ The example uses the filesystem backend. Backend features
 are enabled by the application; filesystem support is a development dependency.
 See [I/O semantics and error handling](docs/io.md).
 
+## Read PMC metadata
+
+`pmc_io::read_metadata(&operator, metadata_path).await` reads one PMC JSON object.
+For an existing futures byte stream, use
+`MetadataReader::new(input, metadata_uri).read().await`. Both return `PmcMetadata`,
+including articles that have no PDF.
+
+```rust
+let article = pmc_io::read_metadata(operator, "metadata/PMC123.2.json").await?;
+if let Some(metadata) = article.into_pdf_metadata(retrieved_at, None) {
+    // The object path is supplied separately from the source PDF URL.
+    let record = pmc_io::read_pdf(operator, "PMC123.2/article.pdf", metadata).await?;
+    let batch = pmc_arrow::to_record_batch(&[record])?;
+}
+```
+
+Source JSON is preserved verbatim. The adapter maps `version`, `license_code`
+and `pdf_url` into the PDF snapshot fields; numeric PMIDs become decimal strings.
+Retrieval and PDF modification times remain explicit caller inputs in UTC
+microseconds. See [metadata mapping and errors](docs/metadata.md).
+
 ## Conversion contract
 
 - [Schema and validation details](docs/schema.md).
@@ -92,8 +113,8 @@ See [I/O semantics and error handling](docs/io.md).
 - Missing optional values stay null; supplied empty strings stay empty. Unknown
   versions are never replaced with version 1.
 - Raw JSON must be an object and is retained verbatim, including unknown fields,
-  large numbers, duplicate keys and whitespace. The library does not map a
-  provider's JSON into typed fields automatically.
+  large numbers, duplicate keys and whitespace. The core accepts explicit
+  fields; the I/O crate maps PMC source JSON as described above.
 - PDF validation checks only the header. It is not a PDF parser and cannot
   certify completeness, renderability or safety.
 - Batch conversion preserves order and duplicates. It does not select a preferred

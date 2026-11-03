@@ -1,4 +1,4 @@
-# Async PDF ingestion
+# Async PDF and metadata ingestion
 
 `pmc-io` reads a single PDF into a validated `pmc_arrow::PdfRecord`:
 
@@ -17,6 +17,12 @@ configuration or credentials are serialized into metadata.
 All file and network reads are asynchronous. CPU-only validation, SHA-256 and
 Arrow construction use the synchronous core library. The CLI remains a scaffold.
 
+Metadata JSON can be read separately with `read_metadata(&Operator, path).await`
+or `MetadataReader::new(stream, metadata_uri).read().await`. Both return
+`PmcMetadata`; `into_pdf_metadata(retrieved_at, source_last_modified)` maps it to
+a PDF snapshot's metadata or returns `None` when the source has no PDF URL.
+See [metadata mapping](metadata.md) for the source contract.
+
 ## Reading and buffering
 
 Both paths read the complete PDF without a configured size limit.
@@ -31,9 +37,10 @@ also copies the payload.
 
 ## Metadata and errors
 
-Metadata is supplied explicitly, including PMCID, source URI and UTC microsecond
-timestamps. Reads do not infer versions, licenses, article metadata or object
-modification times, and do not read the clock. The core's existing normalization
+PDF readers accept metadata supplied by the caller or mapped from source JSON.
+The JSON adapter reads the source version, license and article fields. Timestamps
+remain explicit caller inputs in UTC microseconds; readers do not stat objects
+or read the clock. The core's existing normalization
 and validation apply after the complete PDF is collected. PDF header validation
 is not a complete PDF integrity check.
 
