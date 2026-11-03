@@ -28,7 +28,7 @@
 //! ```
 
 mod error;
-mod reader;
+mod pdf_reader;
 
 pub use error::ReadError;
-pub use reader::{read_pdf, PdfReader};
+pub use pdf_reader::{read_pdf, PdfReader};
