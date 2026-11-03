@@ -70,7 +70,8 @@ Tokio is a development dependency of `pmc-arrow` for the example.
 ## Read through OpenDAL
 
 `pmc_io::read_pdf(&operator, path, metadata, max_pdf_bytes).await` reads one PDF
-through a caller-configured OpenDAL operator and returns a validated `PdfRecord`.
+through a caller-configured OpenDAL operator using native `Buffer` chunks
+and returns a validated `PdfRecord`, without an `AsyncRead` adapter.
 Use `read_pdf_from(stream, metadata, max_pdf_bytes).await` for an existing futures
 `AsyncRead` stream. Pass accepted records to `pmc_arrow::to_record_batch`.
 

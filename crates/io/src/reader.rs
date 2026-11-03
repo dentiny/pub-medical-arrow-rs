@@ -1,5 +1,6 @@
 use futures::io::{AsyncRead, AsyncReadExt};
-use opendal::Operator;
+use futures::TryStreamExt;
+use opendal::{Buffer, Operator};
 use pmc_arrow::{PdfMetadata, PdfRecord};
 
 use crate::ReadError;
@@ -10,9 +11,12 @@ use crate::ReadError;
 /// as supplied; it is not derived from the path or operator configuration.
 /// Caller-configured OpenDAL layers provide retries and timeouts.
 ///
-/// The entire accepted PDF is buffered. See [`read_pdf_from`] for payload limit
-/// and memory semantics. No stat request is used to infer timestamps or size.
-/// Object access can be deferred until the stream is read.
+/// Collects native OpenDAL buffer chunks while checking their combined size.
+/// A chunk exceeding the remaining limit is rejected before copying the PDF.
+/// Accepted chunks are copied once into the `Vec<u8>` required by `PdfRecord`;
+/// no futures `AsyncRead` adapter is used on this path. No stat request is made
+/// to infer source metadata. The final backend chunk may exceed the limit;
+/// this bounds accepted payload size, not network traffic or backend buffering.
 pub async fn read_pdf(
     operator: &Operator,
     path: &str,
@@ -20,19 +24,28 @@ pub async fn read_pdf(
     max_pdf_bytes: usize,
 ) -> Result<PdfRecord, ReadError> {
     validate_limit(max_pdf_bytes)?;
-    let input = async {
-        operator
-            .reader(path)
-            .await?
-            .into_futures_async_read(..)
-            .await
-    }
-    .await
-    .map_err(|source| ReadError::Open {
+    let storage_error = |source| ReadError::Storage {
         source_uri: metadata.source_uri.clone(),
         source,
-    })?;
-    read_pdf_from(input, metadata, max_pdf_bytes).await
+    };
+    let reader = operator.reader(path).await.map_err(&storage_error)?;
+    let mut stream = reader.into_stream(..).await.map_err(&storage_error)?;
+    let mut chunks = Vec::new();
+    let mut size = 0;
+    while let Some(buffer) = stream.try_next().await.map_err(&storage_error)? {
+        if buffer.len() > max_pdf_bytes - size {
+            return Err(ReadError::TooLarge {
+                source_uri: metadata.source_uri,
+                limit: max_pdf_bytes,
+            });
+        }
+        size += buffer.len();
+        chunks.extend(buffer);
+    }
+    let bytes = chunks.into_iter().collect::<Buffer>().to_vec();
+    let source_uri = metadata.source_uri.clone();
+    PdfRecord::try_new(bytes, metadata)
+        .map_err(|source| ReadError::InvalidRecord { source_uri, source })
 }
 
 /// Read one PDF from an async byte stream and validate it with `pmc-arrow`.

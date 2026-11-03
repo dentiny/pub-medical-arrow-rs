@@ -3,8 +3,8 @@
 pub enum ReadError {
     #[error("max_pdf_bytes must be smaller than isize::MAX")]
     InvalidSizeLimit,
-    #[error("{source_uri}: failed to open PDF source: {source}")]
-    Open {
+    #[error("{source_uri}: OpenDAL PDF read failed: {source}")]
+    Storage {
         source_uri: String,
         #[source]
         source: opendal::Error,

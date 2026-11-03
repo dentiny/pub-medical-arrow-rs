@@ -116,13 +116,9 @@ async fn missing_object_and_invalid_payload_keep_source_context() {
         .await
         .unwrap_err();
     match error {
-        ReadError::Open { source_uri, source } => {
+        ReadError::Storage { source_uri, source } => {
             assert_eq!(source_uri, SOURCE_URI);
             assert_eq!(source.kind(), opendal::ErrorKind::NotFound);
-        }
-        ReadError::Read { source_uri, source } => {
-            assert_eq!(source_uri, SOURCE_URI);
-            assert_eq!(source.kind(), io::ErrorKind::NotFound);
         }
         error => panic!("unexpected error: {error}"),
     }
