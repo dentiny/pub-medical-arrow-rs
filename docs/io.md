@@ -2,11 +2,11 @@
 
 `pmc-io` reads a single PDF into a validated `pmc_arrow::PdfRecord`:
 
-- `read_pdf(&Operator, path, PdfMetadata, max_pdf_bytes).await` consumes native
+- `read_pdf(&Operator, path, PdfMetadata).await` consumes native
   OpenDAL `Buffer` chunks, without an `AsyncRead` adapter.
-- `PdfReader::new(stream, PdfMetadata, max_pdf_bytes)?.read().await` accepts a
+- `PdfReader::new(stream, PdfMetadata).read().await` accepts a
   futures async byte stream, including a borrowed `&mut` stream. The synchronous
-  constructor only validates configuration; `read(self)` performs asynchronous
+  constructor stores the input and metadata without I/O; `read(self)` performs asynchronous
   I/O and consumes the reader to produce a single record.
 
 The application configures the operator, credentials, backend features and any
@@ -17,29 +17,17 @@ configuration or credentials are serialized into metadata.
 All file and network reads are asynchronous. CPU-only validation, SHA-256 and
 Arrow construction use the synchronous core library. The CLI remains a scaffold.
 
-## Payload limits
+## Reading and buffering
 
-Callers must provide a maximum PDF payload size in bytes. It must be smaller
-than `isize::MAX`; zero rejects every nonempty payload. A file exactly at the
-limit is accepted if valid; a larger file returns `ReadError::TooLarge`.
-Neither path converts a truncated prefix into a record.
+Both paths read the complete PDF without a configured size limit.
+The OpenDAL path collects native buffer chunks, retaining their storage until
+copied once into the `Vec<u8>` required by the core record. No
+`FuturesAsyncReader` or `read_to_end` adapter is used on this path, and there is
+no preliminary stat request to determine the object length.
 
-The OpenDAL path collects native buffer chunks and checks their combined length
-before retaining each chunk. A chunk that would exceed the limit is rejected;
-it may already have been fetched by the backend. Accepted chunks retain their
-native storage until they are copied once into the `Vec<u8>` required by the
-core record. No `FuturesAsyncReader` or `read_to_end` adapter is used on this path.
-There is no preliminary stat request to determine the object length.
-
-`PdfReader::read` handles existing `AsyncRead` streams. It collects at most the
-limit plus one probe byte to distinguish an exact-size file from oversized
-input. Both paths check actual returned bytes rather than trusting a source
-content-length header.
-
-This is a payload length limit, not a total memory budget. The PDF vector may
-have spare capacity and the backend may buffer or prefetch data. Subsequent
-Arrow conversion also copies the payload. Callers should bound concurrent reads
-and batch sizes separately.
+`PdfReader::read` reads an existing `AsyncRead` stream to EOF into a `Vec<u8>`.
+Both paths materialize the complete PDF in memory; subsequent Arrow conversion
+also copies the payload.
 
 ## Metadata and errors
 
@@ -49,14 +37,14 @@ modification times, and do not read the clock. The core's existing normalization
 and validation apply after the complete PDF is collected. PDF header validation
 is not a complete PDF integrity check.
 
-`ReadError` separates invalid size limits, OpenDAL failures, stream-read
-failures, oversized payloads and invalid core records. Source-related errors
+`ReadError` separates OpenDAL failures, stream-read failures and invalid core
+records. Source-related errors
 include the caller-provided source URI; wrapped I/O, OpenDAL and core errors are
 retained in the error chain. The OpenDAL path returns `ReadError::Storage`;
 the generic async stream path returns `ReadError::Read` for I/O failures.
 No partially read record is returned on failure.
 
-`PdfReader` owns the input, metadata and limit. Reading still materializes the
+`PdfReader` owns the input and metadata. Reading still materializes the
 complete PDF; the reader type does not change the buffering strategy.
 
 Dropping the read future stops collection without a partial record. A borrowed

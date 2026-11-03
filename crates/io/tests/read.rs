@@ -25,9 +25,7 @@ fn operator() -> Operator {
 
 #[tokio::test]
 async fn filesystem_pdf_preserves_bytes_and_metadata_through_arrow_conversion() {
-    let record = read_pdf(&operator(), "tiny.pdf", metadata(), PDF.len())
-        .await
-        .unwrap();
+    let record = read_pdf(&operator(), "tiny.pdf", metadata()).await.unwrap();
     assert_eq!(record.pdf_bytes(), PDF);
     assert_eq!(record.pdf_size_bytes(), PDF.len() as u64);
     assert_eq!(record.metadata().pmcid, "PMC123");
@@ -59,29 +57,11 @@ async fn filesystem_pdf_preserves_bytes_and_metadata_through_arrow_conversion() 
 }
 
 #[tokio::test]
-async fn size_limit_probes_one_byte_and_never_returns_a_truncated_pdf() {
+async fn borrowed_stream_reads_complete_pdf() {
     let mut input = Cursor::new(PDF);
-    let limit = 16;
-    let error = PdfReader::new(&mut input, metadata(), limit)
-        .unwrap()
-        .read()
-        .await
-        .unwrap_err();
-    assert!(
-        matches!(error, ReadError::TooLarge { source_uri, limit: 16 } if source_uri == SOURCE_URI)
-    );
-    assert_eq!(input.position(), (limit + 1) as u64);
-
-    let record = PdfReader::new(Cursor::new(PDF), metadata(), PDF.len())
-        .unwrap()
-        .read()
-        .await
-        .unwrap();
+    let record = PdfReader::new(&mut input, metadata()).read().await.unwrap();
     assert_eq!(record.pdf_bytes(), PDF);
-    assert!(matches!(
-        read_pdf(&operator(), "tiny.pdf", metadata(), PDF.len() - 1).await,
-        Err(ReadError::TooLarge { .. })
-    ));
+    assert_eq!(input.position(), PDF.len() as u64);
 }
 
 struct FailingReader;
@@ -102,12 +82,7 @@ impl AsyncRead for FailingReader {
 #[tokio::test]
 async fn interrupted_stream_does_not_turn_partial_bytes_into_a_record() {
     let input = Cursor::new(PDF).chain(FailingReader);
-    match PdfReader::new(input, metadata(), PDF.len() + 100)
-        .unwrap()
-        .read()
-        .await
-        .unwrap_err()
-    {
+    match PdfReader::new(input, metadata()).read().await.unwrap_err() {
         ReadError::Read { source_uri, source } => {
             assert_eq!(source_uri, SOURCE_URI);
             assert_eq!(source.kind(), io::ErrorKind::ConnectionReset);
@@ -118,7 +93,7 @@ async fn interrupted_stream_does_not_turn_partial_bytes_into_a_record() {
 
 #[tokio::test]
 async fn missing_object_and_invalid_payload_keep_source_context() {
-    let error = read_pdf(&operator(), "missing.pdf", metadata(), 4096)
+    let error = read_pdf(&operator(), "missing.pdf", metadata())
         .await
         .unwrap_err();
     match error {
@@ -128,15 +103,10 @@ async fn missing_object_and_invalid_payload_keep_source_context() {
         }
         error => panic!("unexpected error: {error}"),
     }
-    match PdfReader::new(
-        Cursor::new(b"<html>upstream error</html>"),
-        metadata(),
-        4096,
-    )
-    .unwrap()
-    .read()
-    .await
-    .unwrap_err()
+    match PdfReader::new(Cursor::new(b"<html>upstream error</html>"), metadata())
+        .read()
+        .await
+        .unwrap_err()
     {
         ReadError::InvalidRecord { source_uri, source } => {
             assert_eq!(source_uri, SOURCE_URI);

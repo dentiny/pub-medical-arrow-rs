@@ -27,7 +27,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .as_micros(),
     )?;
     let metadata = PdfMetadata::new(&args[0], path.to_string_lossy(), retrieved_at);
-    let record = read_pdf(&operator, name, metadata, 64 * 1024 * 1024).await?;
+    let record = read_pdf(&operator, name, metadata).await?;
     let batch = to_record_batch(std::slice::from_ref(&record))?;
     let summary = format!(
         "{} row, {} columns; {}: {} PDF bytes\n",

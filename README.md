@@ -69,10 +69,10 @@ Tokio is a development dependency of `pmc-arrow` for the example.
 
 ## Read through OpenDAL
 
-`pmc_io::read_pdf(&operator, path, metadata, max_pdf_bytes).await` reads one PDF
+`pmc_io::read_pdf(&operator, path, metadata).await` reads one PDF
 through a caller-configured OpenDAL operator using native `Buffer` chunks
 and returns a validated `PdfRecord`, without an `AsyncRead` adapter.
-Use `PdfReader::new(stream, metadata, max_pdf_bytes)?.read().await` for an
+Use `PdfReader::new(stream, metadata).read().await` for an
 existing futures `AsyncRead` stream. `new` performs no I/O; async `read` consumes
 the reader and returns one PDF record. Pass accepted records to `pmc_arrow::to_record_batch`.
 
@@ -80,8 +80,7 @@ the reader and returns one PDF record. Pass accepted records to `pmc_arrow::to_r
 cargo run --locked -p pmc-io --example opendal -- PMC123 crates/rs/tests/fixtures/tiny.pdf
 ```
 
-The example uses the filesystem backend and a 64 MiB per-file limit. The library
-requires an explicit limit and does not choose one for callers. Backend features
+The example uses the filesystem backend. Backend features
 are enabled by the application; filesystem support is a development dependency.
 See [I/O semantics and error handling](docs/io.md).
 

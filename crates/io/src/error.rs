@@ -1,8 +1,6 @@
 /// Errors while opening, reading or validating a PDF source.
 #[derive(Debug, thiserror::Error)]
 pub enum ReadError {
-    #[error("max_pdf_bytes must be smaller than isize::MAX")]
-    InvalidSizeLimit,
     #[error("{source_uri}: OpenDAL PDF read failed: {source}")]
     Storage {
         source_uri: String,
@@ -15,8 +13,6 @@ pub enum ReadError {
         #[source]
         source: std::io::Error,
     },
-    #[error("{source_uri}: PDF payload exceeds the {limit} byte limit")]
-    TooLarge { source_uri: String, limit: usize },
     #[error("{source_uri}: invalid PDF record: {source}")]
     InvalidRecord {
         source_uri: String,
