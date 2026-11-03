@@ -25,7 +25,11 @@ pub struct PdfMetadata {
     pub license: Option<String>,
     /// Original PDF location. Any nonblank value is accepted, including local paths.
     pub source_uri: String,
+    /// PDF source object's last-modified time in signed microseconds since the
+    /// Unix epoch (1970-01-01 00:00:00 UTC). `None` means the time is unknown.
     pub source_last_modified: Option<i64>,
+    /// Caller-supplied PDF retrieval time in signed microseconds since the
+    /// Unix epoch (1970-01-01 00:00:00 UTC).
     pub retrieved_at: i64,
     /// A valid JSON object, preserved verbatim (including whitespace and unknown fields).
     /// No provider-specific field mapping is performed in this crate.
