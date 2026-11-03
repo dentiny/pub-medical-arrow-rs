@@ -1,0 +1,12 @@
+[package]
+name = "pmc-io"
+description = "Reserved for PMC source ingestion and dataset output"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+readme.workspace = true
+publish = false
+
+[dependencies]
+pmc-arrow.workspace = true
+opendal.workspace = true
