@@ -10,7 +10,7 @@ dataset storage.
 | Directory | Crate | Status |
 | --- | --- | --- |
 | `crates/rs` | `pmc-arrow` | Implemented: model, validation, schema and in-memory Arrow conversion |
-| `crates/io` | `pmc-io` | Placeholder for discovery, downloads, batching and Lance output |
+| `crates/io` | `pmc-io` | Implemented: async single-PDF reads via OpenDAL or byte streams |
 | `crates/cli` | `pmc-cli` | Placeholder; exits with an explicit not-implemented error |
 
 Dependency declarations match the local `atif-arrow` workspace: Arrow `58` and
@@ -67,6 +67,22 @@ The example uses Tokio for asynchronous file reads, path canonicalization and
 stdout writes, then builds an in-memory batch. It does not write a dataset.
 Tokio is a development dependency of `pmc-arrow` for the example.
 
+## Read through OpenDAL
+
+`pmc_io::read_pdf(&operator, path, metadata, max_pdf_bytes).await` reads one PDF
+through a caller-configured OpenDAL operator and returns a validated `PdfRecord`.
+Use `read_pdf_from(stream, metadata, max_pdf_bytes).await` for an existing futures
+`AsyncRead` stream. Pass accepted records to `pmc_arrow::to_record_batch`.
+
+```sh
+cargo run --locked -p pmc-io --example opendal -- PMC123 crates/rs/tests/fixtures/tiny.pdf
+```
+
+The example uses the filesystem backend and a 64 MiB per-file limit. The library
+requires an explicit limit and does not choose one for callers. Backend features
+are enabled by the application; filesystem support is a development dependency.
+See [I/O semantics and error handling](docs/io.md).
+
 ## Conversion contract
 
 - [Schema and validation details](docs/schema.md).
@@ -84,8 +100,9 @@ Tokio is a development dependency of `pmc-arrow` for the example.
 - PDF bytes are copied into the Arrow column once. Caller-owned records remain
   allocated until dropped. Limit both rows and bytes before calling the converter;
   the core library does not impose a batch budget or catch allocation exhaustion.
-- Downloads, retries, Lance blob policies, XML parsing, OCR and text extraction
-  are outside the current implementation.
+- Source discovery, batch scheduling, built-in retries, Lance blob policies, XML
+  parsing, OCR and text extraction are outside the current implementation.
+  Configure retries/timeouts through OpenDAL layers when needed.
 
 ## Development
 
