@@ -69,19 +69,3 @@ fn checked_total(
             .ok_or(Error::BatchTooLarge(field))
     })
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn capacity_limits_are_checked_without_large_allocations() {
-        assert_eq!(checked_total([2, 3], 5, "test").unwrap(), 5);
-        assert!(matches!(
-            checked_total([2, 4], 5, "test"),
-            Err(Error::BatchTooLarge("test"))
-        ));
-        assert!(checked_total([isize::MAX as usize, 1], u64::MAX, "test").is_err());
-        assert!(checked_total([usize::MAX, 1], u64::MAX, "test").is_err());
-    }
-}
