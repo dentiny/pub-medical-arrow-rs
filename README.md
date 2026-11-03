@@ -63,7 +63,9 @@ Or use the synthetic one-page fixture:
 cargo run --locked -p pmc-arrow --example convert -- PMC123 crates/rs/tests/fixtures/tiny.pdf
 ```
 
-The example builds an in-memory batch; it does not write a dataset.
+The example uses Tokio for asynchronous file reads, path canonicalization and
+stdout writes, then builds an in-memory batch. It does not write a dataset.
+Tokio is a development dependency of `pmc-arrow` for the example.
 
 ## Conversion contract
 
@@ -86,6 +88,9 @@ The example builds an in-memory batch; it does not write a dataset.
   are outside the current implementation.
 
 ## Development
+
+Functions that perform filesystem, network or stream I/O use async APIs. Pure
+in-memory conversion and validation remain synchronous.
 
 ```sh
 cargo fmt --all -- --check

@@ -19,5 +19,6 @@ opendal = { version = "0.59.3", default-features = false, features = [
 sha2 = "0.10"
 serde_json = { version = "1", features = ["raw_value"] }
 thiserror = "2"
+tokio = "1"
 pmc-arrow = { path = "crates/rs", version = "0.1.0" }
 pmc-io = { path = "crates/io", version = "0.1.0" }
