@@ -42,7 +42,7 @@
 //!     retrieved_at: i64,
 //! ) -> Result<Option<pmc_arrow::PdfRecord>, Box<dyn std::error::Error>> {
 //!     let article = read_metadata(operator, metadata_path).await?;
-//!     let Some(metadata) = article.into_pdf_metadata(retrieved_at, None) else {
+//!     let Some(metadata) = article.into_pdf_metadata(retrieved_at, None)? else {
 //!         return Ok(None);
 //!     };
 //!     Ok(Some(read_pdf(operator, pdf_path, metadata).await?))

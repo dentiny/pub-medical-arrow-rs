@@ -16,9 +16,14 @@ and the corresponding article-version prefix use this format.
 - Both return `PmcMetadata` and retain the entire UTF-8 JSON, including original
   whitespace, number spelling and unknown fields. Reads continue to EOF with
   no configured size limit. An I/O failure returns no partial metadata.
+  `PmcMetadata` stores only the original JSON and its diagnostic source location;
+  there is no separate copy of the article fields.
 - `PmcMetadata::into_pdf_metadata(retrieved_at, source_last_modified)` is a
-  synchronous field mapping. Missing or null `pdf_url` returns `None`; reading
-  metadata for an article without a PDF is successful.
+  synchronous extraction into the existing `PdfMetadata` type. It returns
+  `Result<Option<PdfMetadata>, MetadataReadError>`: missing or null `pdf_url`
+  returns `Ok(None)`, while incorrectly typed mapped fields return `Err`.
+  Reading only checks UTF-8, JSON syntax and the object root; article fields
+  are checked at conversion, when a PDF URL is present.
 
 ## Mapping into PDF snapshots
 
@@ -35,8 +40,9 @@ and the corresponding article-version prefix use this format.
 
 Missing or null optional fields remain `None`; empty strings remain present.
 Unknown properties, including XML/text/media links, are retained in raw JSON
-but are not fetched. Known fields with incorrect types and duplicate known
-fields produce parsing errors. Unknown duplicate keys remain in the raw JSON.
+but are not fetched. Conversion borrows raw JSON values and decodes only mapped
+fields. For duplicate keys, the last value is used for conversion; all original
+occurrences remain in the raw JSON.
 The core continues to validate PMCID, positive versions and nonblank PDF source
 URIs when constructing `PdfRecord`; a parsed `PmcMetadata` is not a validated
 PDF record.

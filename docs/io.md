@@ -20,7 +20,8 @@ Arrow construction use the synchronous core library. The CLI remains a scaffold.
 Metadata JSON can be read separately with `read_metadata(&Operator, path).await`
 or `MetadataReader::new(stream, metadata_uri).read().await`. Both return
 `PmcMetadata`; `into_pdf_metadata(retrieved_at, source_last_modified)` maps it to
-a PDF snapshot's metadata or returns `None` when the source has no PDF URL.
+a PDF snapshot's metadata as `Ok(Some(...))`, returns `Ok(None)` without a PDF
+URL, or returns an error for invalid mapped fields.
 See [metadata mapping](metadata.md) for the source contract.
 
 ## Reading and buffering

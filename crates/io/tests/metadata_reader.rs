@@ -25,6 +25,7 @@ async fn filesystem_metadata_maps_into_pdf_and_arrow_without_losing_source_json(
     assert_eq!(source.raw_metadata_json, JSON);
     let metadata = source
         .into_pdf_metadata(1_700_000_000_123_456, Some(1_699_999_000_000_000))
+        .unwrap()
         .unwrap();
     assert_eq!(metadata.pmcid, "PMC123");
     assert_eq!(metadata.pmc_version, Some(2));
@@ -70,17 +71,15 @@ async fn stream_preserves_optional_fields_and_handles_articles_without_pdfs() {
             .unwrap();
         assert_eq!(input.position(), json.len() as u64);
         assert_eq!(source.raw_metadata_json, json);
-        assert_eq!(source.version, None);
-        assert_eq!(source.pmid, None);
-        assert_eq!(source.pdf_url, None);
-        assert!(source.into_pdf_metadata(0, None).is_none());
+        assert!(source.into_pdf_metadata(0, None).unwrap().is_none());
     }
-    let json = r#"{"pmcid":"PMC123","pmid":"00042","pdf_url":"s3://example/a.pdf"}"#;
+    let json =
+        r#"{"\u0070mcid":"PMC123","pmid":"42","pmid":"00042","pdf_url":"s3://example/a.pdf"}"#;
     let source = MetadataReader::new(Cursor::new(json), METADATA_URI)
         .read()
         .await
         .unwrap();
-    let metadata = source.into_pdf_metadata(0, None).unwrap();
+    let metadata = source.into_pdf_metadata(0, None).unwrap().unwrap();
     assert_eq!(metadata.pmid.as_deref(), Some("00042"));
     assert_eq!(metadata.pmc_version, None);
     assert_eq!(metadata.source_last_modified, None);
@@ -88,19 +87,28 @@ async fn stream_preserves_optional_fields_and_handles_articles_without_pdfs() {
 
 #[tokio::test]
 async fn malformed_json_and_mapped_field_types_keep_source_context() {
-    for json in [
-        r#"{"pmcid":"PMC123""#,
-        r#"{"pmcid":"PMC123"} {}"#,
-        r#"{"pmcid":"PMC123","pmid":1.5}"#,
-        r#"{"pmcid":"PMC123","version":"1"}"#,
-        r#"{"pmcid":"PMC123","pdf_url":false}"#,
-        r#"{"pmcid":"PMC123","pmcid":"PMC456"}"#,
-        r#"{"title":"missing identity"}"#,
-    ] {
+    for json in [r#"{"pmcid":"PMC123""#, r#"{"pmcid":"PMC123"} {}"#] {
         let error = MetadataReader::new(Cursor::new(json), METADATA_URI)
             .read()
             .await
             .unwrap_err();
+        assert!(
+            matches!(error, MetadataReadError::InvalidJson { source_uri, .. } if source_uri == METADATA_URI),
+            "input: {json}"
+        );
+    }
+    // JSON reading succeeds; mapped field types are checked at conversion.
+    for json in [
+        r#"{"pmcid":"PMC123","pmid":1.5,"pdf_url":"s3://example/a.pdf"}"#,
+        r#"{"pmcid":"PMC123","version":"1","pdf_url":"s3://example/a.pdf"}"#,
+        r#"{"pmcid":"PMC123","pdf_url":false}"#,
+        r#"{"title":"missing identity","pdf_url":"s3://example/a.pdf"}"#,
+    ] {
+        let source = MetadataReader::new(Cursor::new(json), METADATA_URI)
+            .read()
+            .await
+            .unwrap();
+        let error = source.into_pdf_metadata(0, None).unwrap_err();
         assert!(
             matches!(error, MetadataReadError::InvalidJson { source_uri, .. } if source_uri == METADATA_URI),
             "input: {json}"

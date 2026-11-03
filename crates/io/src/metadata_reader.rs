@@ -38,9 +38,10 @@ impl<R: AsyncRead + Unpin> MetadataReader<R> {
         }
     }
 
-    /// Consume the reader, read the complete JSON to EOF, and parse its metadata.
+    /// Consume the reader, read the complete JSON to EOF, and validate its syntax.
     ///
-    /// The original JSON is retained verbatim. No size limit or timestamp is
+    /// The original JSON object is retained verbatim; article fields are parsed
+    /// by `into_pdf_metadata`. No size limit or timestamp is
     /// inferred. Dropping the future does not rewind a borrowed stream.
     pub async fn read(self) -> Result<PmcMetadata, MetadataReadError> {
         let Self {

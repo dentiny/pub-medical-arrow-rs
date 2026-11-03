@@ -93,14 +93,15 @@ including articles that have no PDF.
 
 ```rust
 let article = pmc_io::read_metadata(operator, "metadata/PMC123.2.json").await?;
-if let Some(metadata) = article.into_pdf_metadata(retrieved_at, None) {
+if let Some(metadata) = article.into_pdf_metadata(retrieved_at, None)? {
     // The object path is supplied separately from the source PDF URL.
     let record = pmc_io::read_pdf(operator, "PMC123.2/article.pdf", metadata).await?;
     let batch = pmc_arrow::to_record_batch(&[record])?;
 }
 ```
 
-Source JSON is preserved verbatim. The adapter maps `version`, `license_code`
+Source JSON is preserved verbatim; article fields are extracted at conversion.
+The adapter maps `version`, `license_code`
 and `pdf_url` into the PDF snapshot fields; numeric PMIDs become decimal strings.
 Retrieval and PDF modification times remain explicit caller inputs in UTC
 microseconds. See [metadata mapping and errors](docs/metadata.md).
