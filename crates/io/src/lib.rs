@@ -22,6 +22,7 @@
 
 mod error;
 mod reader;
+mod validation;
 
 pub use error::ReadError;
 pub use reader::{read_pdf, read_pdf_from};

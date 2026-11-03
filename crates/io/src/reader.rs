@@ -3,6 +3,7 @@ use futures::TryStreamExt;
 use opendal::{Buffer, Operator};
 use pmc_arrow::{PdfMetadata, PdfRecord};
 
+use crate::validation::validate_limit;
 use crate::ReadError;
 
 /// Read one PDF through a caller-configured async OpenDAL operator.
@@ -86,11 +87,4 @@ pub async fn read_pdf_from<R: AsyncRead + Unpin>(
     let source_uri = metadata.source_uri.clone();
     PdfRecord::try_new(bytes, metadata)
         .map_err(|source| ReadError::InvalidRecord { source_uri, source })
-}
-
-fn validate_limit(limit: usize) -> Result<u64, ReadError> {
-    if limit >= isize::MAX as usize {
-        return Err(ReadError::InvalidSizeLimit);
-    }
-    Ok(limit as u64 + 1)
 }
