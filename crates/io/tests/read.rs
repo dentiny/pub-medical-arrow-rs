@@ -6,7 +6,7 @@ use arrow_array::LargeBinaryArray;
 use futures::io::{AsyncRead, AsyncReadExt, Cursor};
 use opendal::{services::Fs, Operator};
 use pmc_arrow::{to_record_batch, PdfMetadata};
-use pmc_io::{read_pdf, read_pdf_from, ReadError};
+use pmc_io::{read_pdf, PdfReader, ReadError};
 
 const PDF: &[u8] = include_bytes!("../../rs/tests/fixtures/tiny.pdf");
 const SOURCE_URI: &str = "file:///fixtures/tiny.pdf";
@@ -62,7 +62,9 @@ async fn filesystem_pdf_preserves_bytes_and_metadata_through_arrow_conversion() 
 async fn size_limit_probes_one_byte_and_never_returns_a_truncated_pdf() {
     let mut input = Cursor::new(PDF);
     let limit = 16;
-    let error = read_pdf_from(&mut input, metadata(), limit)
+    let error = PdfReader::new(&mut input, metadata(), limit)
+        .unwrap()
+        .read()
         .await
         .unwrap_err();
     assert!(
@@ -70,7 +72,9 @@ async fn size_limit_probes_one_byte_and_never_returns_a_truncated_pdf() {
     );
     assert_eq!(input.position(), (limit + 1) as u64);
 
-    let record = read_pdf_from(Cursor::new(PDF), metadata(), PDF.len())
+    let record = PdfReader::new(Cursor::new(PDF), metadata(), PDF.len())
+        .unwrap()
+        .read()
         .await
         .unwrap();
     assert_eq!(record.pdf_bytes(), PDF);
@@ -98,7 +102,9 @@ impl AsyncRead for FailingReader {
 #[tokio::test]
 async fn interrupted_stream_does_not_turn_partial_bytes_into_a_record() {
     let input = Cursor::new(PDF).chain(FailingReader);
-    match read_pdf_from(input, metadata(), PDF.len() + 100)
+    match PdfReader::new(input, metadata(), PDF.len() + 100)
+        .unwrap()
+        .read()
         .await
         .unwrap_err()
     {
@@ -122,11 +128,13 @@ async fn missing_object_and_invalid_payload_keep_source_context() {
         }
         error => panic!("unexpected error: {error}"),
     }
-    match read_pdf_from(
+    match PdfReader::new(
         Cursor::new(b"<html>upstream error</html>"),
         metadata(),
         4096,
     )
+    .unwrap()
+    .read()
     .await
     .unwrap_err()
     {

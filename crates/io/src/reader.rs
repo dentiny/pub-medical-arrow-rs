@@ -49,42 +49,67 @@ pub async fn read_pdf(
         .map_err(|source| ReadError::InvalidRecord { source_uri, source })
 }
 
-/// Read one PDF from an async byte stream and validate it with `pmc-arrow`.
+/// A reader for one PDF supplied as a futures async byte stream.
 ///
-/// Reads at most `max_pdf_bytes + 1` bytes from the supplied stream. The extra
-/// byte distinguishes an exact-size PDF from an oversized PDF, which is rejected
-/// rather than truncated. Zero rejects all nonempty input. The limit must be
-/// smaller than `isize::MAX` so the probe byte fits in an addressable vector.
-///
-/// This bounds collected payload length, not total memory or backend prefetch.
-/// Vector spare capacity, backend buffers and the subsequent Arrow copy consume
-/// additional memory. Dropping the future cancels this read without yielding a
-/// partial record; it does not rewind a caller-owned stream borrowed as `&mut R`.
-///
-/// Metadata and PDF bytes are passed unchanged to `PdfRecord::try_new`; its
-/// normalization and validation rules apply. No timestamps are synthesized.
-pub async fn read_pdf_from<R: AsyncRead + Unpin>(
+/// Owns the stream (or a borrowed `&mut R`), metadata and per-file size limit.
+/// Construction validates configuration without performing I/O. [`Self::read`]
+/// consumes the reader and materializes the complete PDF in memory.
+/// OpenDAL objects use [`read_pdf`] directly to retain native buffer reads.
+pub struct PdfReader<R> {
     input: R,
     metadata: PdfMetadata,
     max_pdf_bytes: usize,
-) -> Result<PdfRecord, ReadError> {
-    let probe_limit = validate_limit(max_pdf_bytes)?;
-    let mut bytes = Vec::new();
-    input
-        .take(probe_limit)
-        .read_to_end(&mut bytes)
-        .await
-        .map_err(|source| ReadError::Read {
-            source_uri: metadata.source_uri.clone(),
-            source,
-        })?;
-    if bytes.len() > max_pdf_bytes {
-        return Err(ReadError::TooLarge {
-            source_uri: metadata.source_uri,
-            limit: max_pdf_bytes,
-        });
+    probe_limit: u64,
+}
+
+impl<R: AsyncRead + Unpin> PdfReader<R> {
+    /// Create a reader with an explicit payload-size limit, without reading bytes.
+    ///
+    /// The limit must be smaller than `isize::MAX`; zero rejects nonempty input.
+    pub fn new(input: R, metadata: PdfMetadata, max_pdf_bytes: usize) -> Result<Self, ReadError> {
+        let probe_limit = validate_limit(max_pdf_bytes)?;
+        Ok(Self {
+            input,
+            metadata,
+            max_pdf_bytes,
+            probe_limit,
+        })
     }
-    let source_uri = metadata.source_uri.clone();
-    PdfRecord::try_new(bytes, metadata)
-        .map_err(|source| ReadError::InvalidRecord { source_uri, source })
+
+    /// Consume this reader and return one validated PDF record.
+    ///
+    /// Reads at most `max_pdf_bytes + 1` bytes. The probe byte distinguishes an
+    /// exact-size PDF from oversized input, which is rejected rather than truncated.
+    /// This bounds collected payload length, not allocation capacity or backend
+    /// buffering. Subsequent Arrow conversion makes another payload copy.
+    ///
+    /// Dropping the future stops collection without returning a partial record;
+    /// a borrowed stream is not rewound. Metadata is passed to the core unchanged,
+    /// and its existing normalization and validation rules apply.
+    pub async fn read(self) -> Result<PdfRecord, ReadError> {
+        let Self {
+            input,
+            metadata,
+            max_pdf_bytes,
+            probe_limit,
+        } = self;
+        let mut bytes = Vec::new();
+        input
+            .take(probe_limit)
+            .read_to_end(&mut bytes)
+            .await
+            .map_err(|source| ReadError::Read {
+                source_uri: metadata.source_uri.clone(),
+                source,
+            })?;
+        if bytes.len() > max_pdf_bytes {
+            return Err(ReadError::TooLarge {
+                source_uri: metadata.source_uri,
+                limit: max_pdf_bytes,
+            });
+        }
+        let source_uri = metadata.source_uri.clone();
+        PdfRecord::try_new(bytes, metadata)
+            .map_err(|source| ReadError::InvalidRecord { source_uri, source })
+    }
 }

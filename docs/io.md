@@ -4,8 +4,10 @@
 
 - `read_pdf(&Operator, path, PdfMetadata, max_pdf_bytes).await` consumes native
   OpenDAL `Buffer` chunks, without an `AsyncRead` adapter.
-- `read_pdf_from(impl AsyncRead + Unpin, PdfMetadata, max_pdf_bytes).await`
-  accepts a futures async byte stream, including a borrowed `&mut` reader.
+- `PdfReader::new(stream, PdfMetadata, max_pdf_bytes)?.read().await` accepts a
+  futures async byte stream, including a borrowed `&mut` stream. The synchronous
+  constructor only validates configuration; `read(self)` performs asynchronous
+  I/O and consumes the reader to produce a single record.
 
 The application configures the operator, credentials, backend features and any
 retry/timeout layers. The object path is relative to the operator root. The
@@ -29,7 +31,7 @@ native storage until they are copied once into the `Vec<u8>` required by the
 core record. No `FuturesAsyncReader` or `read_to_end` adapter is used on this path.
 There is no preliminary stat request to determine the object length.
 
-`read_pdf_from` handles existing `AsyncRead` streams. It collects at most the
+`PdfReader::read` handles existing `AsyncRead` streams. It collects at most the
 limit plus one probe byte to distinguish an exact-size file from oversized
 input. Both paths check actual returned bytes rather than trusting a source
 content-length header.
@@ -53,6 +55,9 @@ include the caller-provided source URI; wrapped I/O, OpenDAL and core errors are
 retained in the error chain. The OpenDAL path returns `ReadError::Storage`;
 the generic async stream path returns `ReadError::Read` for I/O failures.
 No partially read record is returned on failure.
+
+`PdfReader` owns the input, metadata and limit. Reading still materializes the
+complete PDF; the reader type does not change the buffering strategy.
 
 Dropping the read future stops collection without a partial record. A borrowed
 stream is not rewound; retrying it requires the caller to reopen or reset it.

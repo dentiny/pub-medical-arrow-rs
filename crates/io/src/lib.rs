@@ -1,13 +1,13 @@
 //! Asynchronously read a PDF into a validated `pmc_arrow::PdfRecord`.
 //!
 //! Use [`read_pdf`] with a caller-configured OpenDAL operator, or
-//! [`read_pdf_from`] with an existing futures `AsyncRead` stream. Supply a
+//! [`PdfReader`] with an existing futures `AsyncRead` stream. Supply a
 //! per-file payload limit and source metadata explicitly. No discovery, clock
 //! reads, metadata inference or dataset writes are performed here.
 //!
 //! ```no_run
 //! use pmc_arrow::{to_record_batch, PdfMetadata};
-//! use pmc_io::read_pdf;
+//! use pmc_io::{read_pdf, PdfReader};
 //!
 //! async fn ingest(operator: &opendal::Operator) -> Result<(), Box<dyn std::error::Error>> {
 //!     let metadata = PdfMetadata::new(
@@ -18,6 +18,13 @@
 //!     assert_eq!(batch.num_rows(), 1);
 //!     Ok(())
 //! }
+//!
+//! async fn ingest_stream(
+//!     input: impl futures::io::AsyncRead + Unpin,
+//!     metadata: PdfMetadata,
+//! ) -> Result<pmc_arrow::PdfRecord, pmc_io::ReadError> {
+//!     PdfReader::new(input, metadata, 64 * 1024 * 1024)?.read().await
+//! }
 //! ```
 
 mod error;
@@ -25,4 +32,4 @@ mod reader;
 mod validation;
 
 pub use error::ReadError;
-pub use reader::{read_pdf, read_pdf_from};
+pub use reader::{read_pdf, PdfReader};
