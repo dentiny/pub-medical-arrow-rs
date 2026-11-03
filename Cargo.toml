@@ -1,0 +1,23 @@
+[workspace]
+members = ["crates/rs", "crates/io", "crates/cli"]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+readme = "README.md"
+
+[workspace.dependencies]
+arrow-array = "58"
+arrow-schema = "58"
+arrow-ipc = "58"
+opendal = { version = "0.59.3", default-features = false, features = [
+    "executors-tokio",
+    "http-transport-reqwest",
+] }
+sha2 = "0.10"
+serde_json = { version = "1", features = ["raw_value"] }
+thiserror = "2"
+pmc-arrow = { path = "crates/rs", version = "0.1.0" }
+pmc-io = { path = "crates/io", version = "0.1.0" }

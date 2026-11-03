@@ -1,0 +1,11 @@
+[package]
+name = "pmc-cli"
+description = "Reserved command-line entry point for PMC ingestion"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+readme.workspace = true
+publish = false
+
+[dependencies]
+pmc-io.workspace = true
