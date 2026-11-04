@@ -83,6 +83,10 @@ the source MD5 is not verified.
 cargo run --locked -p pmc-io --example pmc -- /path/to/pmc-mirror metadata/PMC123.2.json
 ```
 
+For multiple articles, `reader.read_many(paths, parallelism)` consumes a metadata
+path stream and yields records in input order with bounded concurrent reads.
+See [concurrent article reads](docs/parallel.md).
+
 ## Read through OpenDAL
 
 `pmc_io::read_pdf(&operator, path, metadata).await` reads one PDF
