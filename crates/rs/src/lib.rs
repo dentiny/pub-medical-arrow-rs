@@ -25,4 +25,4 @@ mod validation;
 pub use convert::to_record_batch;
 pub use error::{Error, Result};
 pub use model::{PdfMetadata, PdfRecord, Sha256Digest};
-pub use schema::{schema, SCHEMA_VERSION};
+pub use schema::schema;

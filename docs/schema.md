@@ -1,7 +1,7 @@
-# PMC PDF snapshot schema v2
+# PMC PDF snapshot schema
 
 One row represents one supplied PDF file snapshot. Arrow schema metadata contains
-`pmc_arrow.schema_version = "2"` and `pmc_arrow.row_kind = "pdf_snapshot"`.
+`pmc_arrow.row_kind = "pdf_snapshot"`.
 Column order and nullability are fixed, even for an empty batch.
 
 | Column | Arrow type | Nullable | Meaning |

@@ -3,9 +3,6 @@ use std::sync::{Arc, OnceLock};
 
 use arrow_schema::{DataType, Field, Schema, SchemaRef, TimeUnit};
 
-/// Version of the Arrow schema contract (independent of the crate version).
-pub const SCHEMA_VERSION: &str = "2";
-
 /// Fixed 12-column schema for PMC PDF snapshots, including empty batches.
 pub fn schema() -> SchemaRef {
     static SCHEMA: OnceLock<SchemaRef> = OnceLock::new();
@@ -26,10 +23,7 @@ pub fn schema() -> SchemaRef {
                 Field::new("pdf_bytes", DataType::LargeBinary, false),
                 Field::new("raw_metadata_json", DataType::LargeUtf8, true),
             ],
-            HashMap::from([
-                ("pmc_arrow.schema_version".into(), SCHEMA_VERSION.into()),
-                ("pmc_arrow.row_kind".into(), "pdf_snapshot".into()),
-            ]),
+            HashMap::from([("pmc_arrow.row_kind".into(), "pdf_snapshot".into())]),
         ))
     }))
 }
