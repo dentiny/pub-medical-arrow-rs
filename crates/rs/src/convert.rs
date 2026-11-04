@@ -55,12 +55,6 @@ pub fn to_record_batch(records: &[PdfRecord]) -> Result<RecordBatch> {
             )
             .with_timezone("UTC"),
         ),
-        Arc::new(
-            TimestampMicrosecondArray::from_iter_values(
-                records.iter().map(|r| r.metadata().retrieved_at),
-            )
-            .with_timezone("UTC"),
-        ),
         Arc::new(hashes.finish()),
         Arc::new(UInt64Array::from_iter_values(
             records.iter().map(PdfRecord::pdf_size_bytes),

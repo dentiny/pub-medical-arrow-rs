@@ -1194,6 +1194,7 @@ dependencies = [
  "arrow-array",
  "futures",
  "opendal",
+ "percent-encoding",
  "pmc-arrow",
  "serde",
  "serde_json",

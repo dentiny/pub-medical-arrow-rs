@@ -7,8 +7,8 @@ pub type Sha256Digest = [u8; 32];
 
 /// Caller-supplied metadata for one PDF snapshot.
 ///
-/// Timestamps are signed microseconds since the Unix epoch in UTC. They are
-/// supplied explicitly so conversions are deterministic. The optional PMC
+/// Source modification times are signed microseconds since the Unix epoch in UTC.
+/// They are supplied explicitly so conversions are deterministic. The optional PMC
 /// version is a source version, not a content hash or a ranking of versions.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PdfMetadata {
@@ -28,9 +28,6 @@ pub struct PdfMetadata {
     /// PDF source object's last-modified time in signed microseconds since the
     /// Unix epoch (1970-01-01 00:00:00 UTC). `None` means the time is unknown.
     pub source_last_modified: Option<i64>,
-    /// Caller-supplied PDF retrieval time in signed microseconds since the
-    /// Unix epoch (1970-01-01 00:00:00 UTC).
-    pub retrieved_at: i64,
     /// A valid JSON object, preserved verbatim (including whitespace and unknown fields).
     /// No provider-specific field mapping is performed in this crate.
     pub raw_metadata_json: Option<String>,
@@ -38,7 +35,7 @@ pub struct PdfMetadata {
 
 impl PdfMetadata {
     /// Create metadata with all optional fields absent.
-    pub fn new(pmcid: impl Into<String>, source_uri: impl Into<String>, retrieved_at: i64) -> Self {
+    pub fn new(pmcid: impl Into<String>, source_uri: impl Into<String>) -> Self {
         Self {
             pmcid: pmcid.into(),
             pmc_version: None,
@@ -48,7 +45,6 @@ impl PdfMetadata {
             license: None,
             source_uri: source_uri.into(),
             source_last_modified: None,
-            retrieved_at,
             raw_metadata_json: None,
         }
     }

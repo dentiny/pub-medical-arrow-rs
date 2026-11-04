@@ -18,7 +18,7 @@ and the corresponding article-version prefix use this format.
   no configured size limit. An I/O failure returns no partial metadata.
   `PmcMetadata` stores only the original JSON and its diagnostic source location;
   there is no separate copy of the article fields.
-- `PmcMetadata::into_pdf_metadata(retrieved_at, source_last_modified)` is a
+- `PmcMetadata::into_pdf_metadata(source_last_modified)` is a
   synchronous extraction into the existing `PdfMetadata` type. It returns
   `Result<Option<PdfMetadata>, MetadataReadError>`: missing or null `pdf_url`
   returns `Ok(None)`, while incorrectly typed mapped fields return `Err`.
@@ -47,15 +47,16 @@ The core continues to validate PMCID, positive versions and nonblank PDF source
 URIs when constructing `PdfRecord`; a parsed `PmcMetadata` is not a validated
 PDF record.
 
-Both time arguments are signed microseconds since the Unix epoch in UTC.
-`source_last_modified` describes the PDF object. The metadata JSON object's
+`source_last_modified` describes the PDF object in signed microseconds since
+the Unix epoch in UTC. The metadata JSON object's
 modification time or inventory timestamp must not be substituted for it;
 use `None` if the PDF modification time is unknown.
 
 A `pdf_url` is provenance, not an OpenDAL-relative key: it can include a bucket,
 URL escaping and an MD5 query parameter. This reader neither resolves it to an
-operator/path nor verifies that MD5. Callers currently supply the matching PDF
-path explicitly; automatic association belongs to the dataset reader.
+operator/path nor verifies that MD5. Use `PmcReader` for combined metadata/PDF
+reads from the PMC bucket or a matching mirror, or supply a PDF path explicitly
+to the lower-level reader. `PmcReader` resolves the URL but does not verify MD5.
 
 ## Errors
 

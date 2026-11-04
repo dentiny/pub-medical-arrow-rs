@@ -1,7 +1,7 @@
-# PMC PDF snapshot schema v1
+# PMC PDF snapshot schema
 
 One row represents one supplied PDF file snapshot. Arrow schema metadata contains
-`pmc_arrow.schema_version = "1"` and `pmc_arrow.row_kind = "pdf_snapshot"`.
+`pmc_arrow.row_kind = "pdf_snapshot"`.
 Column order and nullability are fixed, even for an empty batch.
 
 | Column | Arrow type | Nullable | Meaning |
@@ -14,7 +14,6 @@ Column order and nullability are fixed, even for an empty batch.
 | `license` | `Utf8` | Yes | Source-supplied license label |
 | `source_uri` | `Utf8` | No | Original PDF location, including a local path if applicable |
 | `source_last_modified` | `Timestamp(Microsecond, "UTC")` | Yes | Last-modified time of the PDF source object, if known |
-| `retrieved_at` | `Timestamp(Microsecond, "UTC")` | No | Caller-supplied retrieval time |
 | `pdf_sha256` | `FixedSizeBinary(32)` | No | SHA-256 over the exact PDF bytes, stored as 32 bytes, not hex |
 | `pdf_size_bytes` | `UInt64` | No | Length of the exact PDF payload |
 | `pdf_bytes` | `LargeBinary` | No | Complete unmodified PDF payload |
@@ -41,9 +40,9 @@ version is preferred. See the
 [official PMC versioning documentation](https://pmc.ncbi.nlm.nih.gov/tools/pmcaws/).
 
 `source_last_modified` must describe the PDF object, not the article's publication
-date or an unrelated metadata object's timestamp. Both timestamps are signed
-UTC microseconds since 1970-01-01; zero and negative values are representable.
-The library does not read the system clock or impose ordering between these times.
+date or an unrelated metadata object's timestamp. It uses signed UTC microseconds
+since 1970-01-01; zero and negative values are representable. The library does
+not read the system clock.
 
 ## Input validation and preservation
 
@@ -71,7 +70,7 @@ does not infer mappings or resolve disagreements. The PMC JSON adapter in
 ## Batches and memory
 
 `to_record_batch(&[PdfRecord])` preserves row order, duplicates, nulls and all
-payload bytes. Empty input yields zero rows and all 13 columns. Errors are typed
+payload bytes. Empty input yields zero rows and all 12 columns. Errors are typed
 through `pmc_arrow::Error`; malformed records cannot be constructed through the
 public API and are not silently skipped.
 

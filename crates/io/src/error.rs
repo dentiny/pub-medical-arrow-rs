@@ -51,3 +51,14 @@ pub enum MetadataReadError {
     #[error("{source_uri}: PMC metadata must be a JSON object")]
     NotObject { source_uri: String },
 }
+
+/// Errors while reading a PMC article and its referenced PDF.
+#[derive(Debug, thiserror::Error)]
+pub enum PmcReadError {
+    #[error(transparent)]
+    Metadata(#[from] MetadataReadError),
+    #[error(transparent)]
+    Pdf(#[from] ReadError),
+    #[error("{source_uri}: expected an s3://pmc-oa-opendata/ PDF URL with a usable object path")]
+    InvalidPdfUrl { source_uri: String },
+}

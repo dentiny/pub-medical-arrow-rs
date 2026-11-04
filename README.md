@@ -10,7 +10,7 @@ dataset storage.
 | Directory | Crate | Status |
 | --- | --- | --- |
 | `crates/rs` | `pmc-arrow` | Implemented: model, validation, schema and in-memory Arrow conversion |
-| `crates/io` | `pmc-io` | Implemented: async PDF and PMC metadata reads via OpenDAL or byte streams |
+| `crates/io` | `pmc-io` | Implemented: combined PMC article reads, plus separate PDF and metadata readers |
 | `crates/cli` | `pmc-cli` | Placeholder; exits with an explicit not-implemented error |
 
 Dependency declarations match the local `atif-arrow` workspace: Arrow `58` and
@@ -32,12 +32,7 @@ pmc-arrow = { path = "/path/to/pub-medical-arrow-rs/crates/rs" }
 use pmc_arrow::{to_record_batch, PdfMetadata, PdfRecord};
 
 fn convert(pdf: Vec<u8>) -> pmc_arrow::Result<arrow_array::RecordBatch> {
-    // Timestamps are UTC microseconds since the Unix epoch, supplied by the caller.
-    let mut metadata = PdfMetadata::new(
-        "PMC123",
-        "file:///data/PMC123.pdf",
-        1_700_000_000_000_000,
-    );
+    let mut metadata = PdfMetadata::new("PMC123", "file:///data/PMC123.pdf");
     metadata.title = Some("Example article".into());
     // Leave version, PMID, DOI and license absent unless the source provides them.
     let record = PdfRecord::try_new(pdf, metadata)?;
@@ -67,6 +62,27 @@ The example uses Tokio for asynchronous file reads, path canonicalization and
 stdout writes, then builds an in-memory batch. It does not write a dataset.
 Tokio is a development dependency of `pmc-arrow` for the example.
 
+## Read a PMC article
+
+Configure an OpenDAL operator whose root corresponds to the root of the
+`pmc-oa-opendata` bucket, or a local mirror retaining its object paths:
+
+```rust
+let reader = pmc_io::PmcReader::new(operator);
+if let Some(record) = reader.read("metadata/PMC123.2.json").await? {
+    let batch = pmc_arrow::to_record_batch(&[record])?;
+}
+```
+
+The reader fetches metadata, resolves its `pdf_url`, then reads that PDF.
+Missing PDF URLs return `None`. PDF modification time remains unknown. The
+original source URL, including its checksum query, is preserved. The query is excluded from the object path;
+the source MD5 is not verified.
+
+```sh
+cargo run --locked -p pmc-io --example pmc -- /path/to/pmc-mirror metadata/PMC123.2.json
+```
+
 ## Read through OpenDAL
 
 `pmc_io::read_pdf(&operator, path, metadata).await` reads one PDF
@@ -93,7 +109,7 @@ including articles that have no PDF.
 
 ```rust
 let article = pmc_io::read_metadata(operator, "metadata/PMC123.2.json").await?;
-if let Some(metadata) = article.into_pdf_metadata(retrieved_at, None)? {
+if let Some(metadata) = article.into_pdf_metadata(None)? {
     // The object path is supplied separately from the source PDF URL.
     let record = pmc_io::read_pdf(operator, "PMC123.2/article.pdf", metadata).await?;
     let batch = pmc_arrow::to_record_batch(&[record])?;
@@ -103,14 +119,14 @@ if let Some(metadata) = article.into_pdf_metadata(retrieved_at, None)? {
 Source JSON is preserved verbatim; article fields are extracted at conversion.
 The adapter maps `version`, `license_code`
 and `pdf_url` into the PDF snapshot fields; numeric PMIDs become decimal strings.
-Retrieval and PDF modification times remain explicit caller inputs in UTC
-microseconds. See [metadata mapping and errors](docs/metadata.md).
+PDF modification time can be supplied explicitly in UTC microseconds.
+See [metadata mapping and errors](docs/metadata.md).
 
 ## Conversion contract
 
 - [Schema and validation details](docs/schema.md).
 - PDF data is `LargeBinary`, the digest is `FixedSizeBinary(32)`, and long text
-  fields are `LargeUtf8`. Timestamps carry a UTC timezone in Arrow.
+  fields are `LargeUtf8`. The modification timestamp carries a UTC timezone in Arrow.
 - Missing optional values stay null; supplied empty strings stay empty. Unknown
   versions are never replaced with version 1.
 - Raw JSON must be an object and is retained verbatim, including unknown fields,
