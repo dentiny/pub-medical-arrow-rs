@@ -23,7 +23,7 @@ mod model;
 mod schema;
 mod validation;
 
-pub use batch::PdfBatchBuilder;
+pub use batch::{PdfBatchBuilder, PdfBatchConfig};
 pub use convert::to_record_batch;
 pub use error::{Error, Result};
 pub use model::{PdfMetadata, PdfRecord};
