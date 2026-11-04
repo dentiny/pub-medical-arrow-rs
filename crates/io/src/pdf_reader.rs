@@ -1,6 +1,5 @@
 use futures::io::{AsyncRead, AsyncReadExt};
-use futures::TryStreamExt;
-use opendal::{Buffer, Operator};
+use opendal::Operator;
 use pmc_arrow::{PdfMetadata, PdfRecord};
 
 use crate::ReadError;
@@ -11,7 +10,7 @@ use crate::ReadError;
 /// as supplied; it is not derived from the path or operator configuration.
 /// Caller-configured OpenDAL layers provide retries and timeouts.
 ///
-/// Collects native OpenDAL buffer chunks and copies them once into the
+/// Reads a native OpenDAL buffer and copies it once into the
 /// `Vec<u8>` required by `PdfRecord`;
 /// no futures `AsyncRead` adapter is used on this path. No stat request is made
 /// to infer source metadata. The complete PDF is materialized in memory.
@@ -20,17 +19,14 @@ pub async fn read_pdf(
     path: &str,
     metadata: PdfMetadata,
 ) -> Result<PdfRecord, ReadError> {
-    let storage_error = |source| ReadError::Storage {
-        source_uri: metadata.source_uri.clone(),
-        source,
-    };
-    let reader = operator.reader(path).await.map_err(&storage_error)?;
-    let mut stream = reader.into_stream(..).await.map_err(&storage_error)?;
-    let mut chunks = Vec::new();
-    while let Some(buffer) = stream.try_next().await.map_err(&storage_error)? {
-        chunks.extend(buffer);
-    }
-    let bytes = chunks.into_iter().collect::<Buffer>().to_vec();
+    let bytes = operator
+        .read(path)
+        .await
+        .map_err(|source| ReadError::Storage {
+            source_uri: metadata.source_uri.clone(),
+            source,
+        })?
+        .to_vec();
     let source_uri = metadata.source_uri.clone();
     PdfRecord::try_new(bytes, metadata)
         .map_err(|source| ReadError::InvalidRecord { source_uri, source })
