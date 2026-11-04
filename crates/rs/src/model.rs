@@ -2,9 +2,7 @@ use crate::{Error, Result};
 
 /// Caller-supplied metadata for one PDF snapshot.
 ///
-/// Source modification times are signed microseconds since the Unix epoch in UTC.
-/// They are supplied explicitly so conversions are deterministic. The optional PMC
-/// version is a source version, not a content hash or a ranking of versions.
+/// The optional PMC version is a source version, not a ranking of versions.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PdfMetadata {
     /// Positive decimal ID, optionally prefixed with PMC (case insensitive).
@@ -20,9 +18,6 @@ pub struct PdfMetadata {
     pub license: Option<String>,
     /// Original PDF location. Any nonblank value is accepted, including local paths.
     pub source_uri: String,
-    /// PDF source object's last-modified time in signed microseconds since the
-    /// Unix epoch (1970-01-01 00:00:00 UTC). `None` means the time is unknown.
-    pub source_last_modified: Option<i64>,
     /// A valid JSON object, preserved verbatim (including whitespace and unknown fields).
     /// No provider-specific field mapping is performed in this crate.
     pub raw_metadata_json: Option<String>,
@@ -39,7 +34,6 @@ impl PdfMetadata {
             title: None,
             license: None,
             source_uri: source_uri.into(),
-            source_last_modified: None,
             raw_metadata_json: None,
         }
     }
@@ -61,7 +55,6 @@ impl std::fmt::Debug for PdfRecord {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("PdfRecord")
             .field("metadata", &self.metadata)
-            .field("pdf_size_bytes", &self.pdf_size_bytes())
             .finish_non_exhaustive()
     }
 }
@@ -111,10 +104,6 @@ impl PdfRecord {
 
     pub fn pdf_bytes(&self) -> &[u8] {
         &self.pdf_bytes
-    }
-
-    pub fn pdf_size_bytes(&self) -> u64 {
-        self.pdf_bytes.len() as u64
     }
 
     pub(crate) fn into_parts(self) -> (PdfMetadata, Vec<u8>) {

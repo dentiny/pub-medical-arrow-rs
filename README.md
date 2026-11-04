@@ -47,7 +47,7 @@ From a checkout, run the conversion example with the included synthetic PDF:
 cargo run --locked -p pmc-arrow --example convert -- PMC123 crates/rs/tests/fixtures/tiny.pdf
 ```
 
-This builds one row with 11 columns and prints a summary. No download is needed.
+This builds one row with 9 columns and prints a summary. No download is needed.
 
 Add these dependencies to your application, replacing the checkout paths:
 
@@ -180,8 +180,6 @@ empty batches. Schema metadata contains `pmc_arrow.row_kind = "pdf_snapshot"`.
 | `title` | `LargeUtf8` | Yes | Article title |
 | `license` | `Utf8` | Yes | Source license label |
 | `source_uri` | `Utf8` | No | Original PDF location, including query parameters |
-| `source_last_modified` | `Timestamp(Microsecond, "UTC")` | Yes | PDF modification time: signed microseconds since the Unix epoch (1970-01-01 UTC) |
-| `pdf_size_bytes` | `UInt64` | No | PDF payload length in bytes |
 | `pdf_bytes` | `LargeBinary` | No | Complete, unmodified PDF payload |
 | `raw_metadata_json` | `LargeUtf8` | Yes | Verbatim source JSON object, including unknown fields and whitespace |
 
@@ -210,8 +208,7 @@ All four APIs are exported by `pmc-io` and return `Result`. OpenDAL PDF reads us
 native buffer chunks without an `AsyncRead` adapter. Stream reader constructors
 perform no I/O; `read` consumes the reader. `PmcMetadata` retains the original
 JSON even for articles without PDFs. Call
-`into_pdf_metadata(source_last_modified)` to obtain `Result<Option<PdfMetadata>, _>`;
-pass `None` if the PDF modification time is unknown, or UTC microseconds if known.
+`into_pdf_metadata()` to obtain `Result<Option<PdfMetadata>, _>`.
 XML, text and media links remain in raw JSON but their contents are not fetched.
 
 The code and synthetic PDF fixture are distributed under the [MIT license](LICENSE).

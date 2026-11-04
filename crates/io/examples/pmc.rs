@@ -23,7 +23,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 batch.num_rows(),
                 batch.num_columns(),
                 record.metadata().pmcid,
-                record.pdf_size_bytes()
+                record.pdf_bytes().len()
             )
         }
         None => format!("{}: no PDF referenced\n", args[1]),

@@ -26,7 +26,7 @@ async fn filesystem_and_stream_map_every_pdf_metadata_field() {
     ];
     for source in sources {
         assert_eq!(source.raw_metadata_json, JSON);
-        let metadata = source.into_pdf_metadata(Some(-1)).unwrap().unwrap();
+        let metadata = source.into_pdf_metadata().unwrap().unwrap();
         assert_eq!(
             metadata,
             PdfMetadata {
@@ -39,7 +39,6 @@ async fn filesystem_and_stream_map_every_pdf_metadata_field() {
                 source_uri:
                     "s3://pmc-oa-opendata/PMC123.2/article.pdf?md5=0123456789abcdef0123456789abcdef"
                         .into(),
-                source_last_modified: Some(-1),
                 raw_metadata_json: Some(JSON.into()),
             }
         );
@@ -57,7 +56,7 @@ async fn missing_and_null_optional_article_fields_remain_absent() {
             .await
             .unwrap();
         assert_eq!(
-            source.into_pdf_metadata(None).unwrap().unwrap(),
+            source.into_pdf_metadata().unwrap().unwrap(),
             PdfMetadata {
                 raw_metadata_json: Some(json.into()),
                 ..PdfMetadata::new("PMC123", "s3://example/a.pdf")
@@ -79,7 +78,7 @@ async fn stream_preserves_optional_fields_and_handles_articles_without_pdfs() {
             .unwrap();
         assert_eq!(input.position(), json.len() as u64);
         assert_eq!(source.raw_metadata_json, json);
-        assert!(source.into_pdf_metadata(None).unwrap().is_none());
+        assert!(source.into_pdf_metadata().unwrap().is_none());
     }
     let json =
         r#"{"\u0070mcid":"PMC123","pmid":"42","pmid":"00042","pdf_url":"s3://example/a.pdf"}"#;
@@ -87,10 +86,9 @@ async fn stream_preserves_optional_fields_and_handles_articles_without_pdfs() {
         .read()
         .await
         .unwrap();
-    let metadata = source.into_pdf_metadata(None).unwrap().unwrap();
+    let metadata = source.into_pdf_metadata().unwrap().unwrap();
     assert_eq!(metadata.pmid.as_deref(), Some("00042"));
     assert_eq!(metadata.pmc_version, None);
-    assert_eq!(metadata.source_last_modified, None);
 }
 
 #[tokio::test]
@@ -116,7 +114,7 @@ async fn malformed_json_and_mapped_field_types_keep_source_context() {
             .read()
             .await
             .unwrap();
-        let error = source.into_pdf_metadata(None).unwrap_err();
+        let error = source.into_pdf_metadata().unwrap_err();
         assert!(
             matches!(error, MetadataReadError::InvalidJson { source_uri, .. } if source_uri == METADATA_URI),
             "input: {json}"

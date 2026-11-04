@@ -19,7 +19,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         batch.num_rows(),
         batch.num_columns(),
         record.metadata().pmcid,
-        record.pdf_size_bytes(),
+        record.pdf_bytes().len(),
     );
     let mut stdout = tokio::io::stdout();
     stdout.write_all(summary.as_bytes()).await?;

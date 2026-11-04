@@ -12,7 +12,7 @@
 //! let record = PdfRecord::try_new(b"%PDF-1.7\nexample".to_vec(), metadata)?;
 //! let batch = to_record_batch(&[record])?;
 //! assert_eq!(batch.num_rows(), 1);
-//! assert_eq!(batch.num_columns(), 11);
+//! assert_eq!(batch.num_columns(), 9);
 //! # Ok::<(), pmc_arrow::Error>(())
 //! ```
 

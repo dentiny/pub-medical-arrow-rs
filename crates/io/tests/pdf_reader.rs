@@ -27,10 +27,8 @@ fn operator() -> Operator {
 async fn filesystem_pdf_preserves_bytes_and_metadata_through_arrow_conversion() {
     let record = read_pdf(&operator(), "tiny.pdf", metadata()).await.unwrap();
     assert_eq!(record.pdf_bytes(), PDF);
-    assert_eq!(record.pdf_size_bytes(), PDF.len() as u64);
     assert_eq!(record.metadata().pmcid, "PMC123");
     assert_eq!(record.metadata().source_uri, SOURCE_URI);
-    assert_eq!(record.metadata().source_last_modified, None);
     assert_eq!(record.metadata().title, metadata().title);
     assert_eq!(
         record.metadata().raw_metadata_json,
