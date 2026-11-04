@@ -1,6 +1,6 @@
 # Async PMC ingestion
 
-`PmcReader::new(operator).read(metadata_path, retrieved_at).await` reads a
+`PmcReader::new(operator).read(metadata_path).await` reads a
 metadata object, resolves its source PDF URL and returns `Option<PdfRecord>`.
 The reader can be reused for multiple articles. Construction performs no I/O.
 
@@ -13,8 +13,8 @@ normalization are rejected, rather than reading a different local object.
 
 Missing or null `pdf_url` returns `Ok(None)`. `PmcReadError` wraps the existing
 metadata and PDF errors, or reports an unusable source URL. A missing referenced
-PDF is an error. `retrieved_at` is caller-supplied UTC microseconds; the PDF's
-`source_last_modified` remains `None`. Source MD5 query values are not verified.
+PDF is an error. The PDF's `source_last_modified` remains `None`. Source MD5
+query values are not verified.
 
 The async `pmc` example reads from a local mirror and builds an Arrow batch.
 
@@ -39,7 +39,7 @@ Arrow construction use the synchronous core library. The CLI remains a scaffold.
 
 Metadata JSON can be read separately with `read_metadata(&Operator, path).await`
 or `MetadataReader::new(stream, metadata_uri).read().await`. Both return
-`PmcMetadata`; `into_pdf_metadata(retrieved_at, source_last_modified)` maps it to
+`PmcMetadata`; `into_pdf_metadata(source_last_modified)` maps it to
 a PDF snapshot's metadata as `Ok(Some(...))`, returns `Ok(None)` without a PDF
 URL, or returns an error for invalid mapped fields.
 See [metadata mapping](metadata.md) for the source contract.
@@ -59,9 +59,9 @@ also copies the payload.
 ## Metadata and errors
 
 PDF readers accept metadata supplied by the caller or mapped from source JSON.
-The JSON adapter reads the source version, license and article fields. Timestamps
-remain explicit caller inputs in UTC microseconds; readers do not stat objects
-or read the clock. The core's existing normalization
+The JSON adapter reads the source version, license and article fields. PDF
+modification time can be supplied explicitly in UTC microseconds; readers do not
+stat objects or read the clock. The core's existing normalization
 and validation apply after the complete PDF is collected. PDF header validation
 is not a complete PDF integrity check.
 

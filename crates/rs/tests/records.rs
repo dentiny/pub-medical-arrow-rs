@@ -5,10 +5,10 @@ use arrow_array::{
 use pmc_arrow::{schema, to_record_batch, Error, PdfMetadata, PdfRecord};
 
 const PDF: &[u8] = include_bytes!("fixtures/tiny.pdf");
-const RETRIEVED: i64 = 1_793_731_234_567_890;
+const LAST_MODIFIED: i64 = 1_793_731_234_567_889;
 
 fn metadata() -> PdfMetadata {
-    PdfMetadata::new("PMC123", "s3://example/PMC123.2/PMC123.2.pdf", RETRIEVED)
+    PdfMetadata::new("PMC123", "s3://example/PMC123.2/PMC123.2.pdf")
 }
 
 fn record() -> PdfRecord {
@@ -29,7 +29,7 @@ fn empty_batch_retains_schema() {
     let batch = to_record_batch(&[]).unwrap();
     assert_eq!(batch.schema(), schema());
     assert_eq!(batch.num_rows(), 0);
-    assert_eq!(batch.num_columns(), 13);
+    assert_eq!(batch.num_columns(), 12);
 }
 
 #[test]
@@ -41,7 +41,7 @@ fn preserves_all_values_nulls_binary_and_microseconds() {
     full.doi = Some("10.1234/MixedCase".into());
     full.title = Some("免疫研究 — αβ 🧬".into());
     full.license = Some("CC BY 4.0".into());
-    full.source_last_modified = Some(RETRIEVED - 1);
+    full.source_last_modified = Some(LAST_MODIFIED);
     full.raw_metadata_json = Some(raw.into());
     let complete = PdfRecord::try_new(PDF.to_vec(), full.clone()).unwrap();
     let batch = to_record_batch(&[complete, record()]).unwrap();
@@ -66,12 +66,8 @@ fn preserves_all_values_nulls_binary_and_microseconds() {
         raw
     );
     assert_eq!(
-        column::<TimestampMicrosecondArray>(&batch, "retrieved_at").value(0),
-        RETRIEVED
-    );
-    assert_eq!(
         column::<TimestampMicrosecondArray>(&batch, "source_last_modified").value(0),
-        RETRIEVED - 1
+        LAST_MODIFIED
     );
     for name in [
         "pmc_version",
@@ -259,7 +255,6 @@ fn preserves_order_duplicates_and_content_revisions() {
     assert_ne!(first.pdf_sha256(), updated.pdf_sha256());
     let mut other_metadata = metadata();
     other_metadata.pmcid = "PMC456".into();
-    other_metadata.retrieved_at += 1;
     let other = PdfRecord::try_new(PDF.to_vec(), other_metadata).unwrap();
     assert_eq!(first.pdf_sha256(), other.pdf_sha256());
     let batch = to_record_batch(&[updated.clone(), other, first.clone(), first]).unwrap();
@@ -289,15 +284,10 @@ fn preserves_order_duplicates_and_content_revisions() {
 fn preserves_signed_utc_microsecond_timestamps() {
     let mut meta = metadata();
     meta.source_last_modified = Some(-1);
-    meta.retrieved_at = 0;
     let batch = to_record_batch(&[PdfRecord::try_new(PDF.to_vec(), meta).unwrap()]).unwrap();
     assert_eq!(
         column::<TimestampMicrosecondArray>(&batch, "source_last_modified").value(0),
         -1
-    );
-    assert_eq!(
-        column::<TimestampMicrosecondArray>(&batch, "retrieved_at").value(0),
-        0
     );
 }
 

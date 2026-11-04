@@ -37,24 +37,15 @@ async fn follows_pdf_url_and_reuses_reader_for_an_article_without_pdf() {
         .await
         .unwrap();
     let reader = PmcReader::new(operator.clone());
-    let record = reader
-        .read("metadata/article.json", 1_700_000_000_123_456)
-        .await
-        .unwrap()
-        .unwrap();
+    let record = reader.read("metadata/article.json").await.unwrap().unwrap();
     assert_eq!(record.pdf_bytes(), PDF);
     assert_eq!(record.metadata().source_uri, uri);
     assert_eq!(
         record.metadata().raw_metadata_json.as_deref(),
         Some(json.as_str())
     );
-    assert_eq!(record.metadata().retrieved_at, 1_700_000_000_123_456);
     assert_eq!(record.metadata().source_last_modified, None);
-    assert!(reader
-        .read("metadata/no-pdf.json", 0)
-        .await
-        .unwrap()
-        .is_none());
+    assert!(reader.read("metadata/no-pdf.json").await.unwrap().is_none());
     operator.delete_with("/").recursive(true).await.unwrap();
 }
 
@@ -74,7 +65,7 @@ async fn wrong_bucket_and_ambiguous_paths_are_not_read_from_the_mirror() {
     ] {
         let json = serde_json::json!({"pmcid":"PMC123", "pdf_url":uri}).to_string();
         operator.write("metadata/article.json", json).await.unwrap();
-        let error = reader.read("metadata/article.json", 0).await.unwrap_err();
+        let error = reader.read("metadata/article.json").await.unwrap_err();
         assert!(matches!(error, PmcReadError::InvalidPdfUrl { source_uri } if source_uri == uri));
     }
     operator.delete_with("/").recursive(true).await.unwrap();
@@ -84,7 +75,7 @@ async fn wrong_bucket_and_ambiguous_paths_are_not_read_from_the_mirror() {
 async fn distinguishes_missing_metadata_from_a_missing_referenced_pdf() {
     let operator = operator("errors").await;
     let reader = PmcReader::new(operator.clone());
-    let error = reader.read("metadata/missing.json", 0).await.unwrap_err();
+    let error = reader.read("metadata/missing.json").await.unwrap_err();
     assert!(
         matches!(error, PmcReadError::Metadata(MetadataReadError::Storage { source_uri, source })
         if source_uri == "metadata/missing.json" && source.kind() == opendal::ErrorKind::NotFound)
@@ -92,7 +83,7 @@ async fn distinguishes_missing_metadata_from_a_missing_referenced_pdf() {
     let uri = "s3://pmc-oa-opendata/PMC123.1/missing.pdf?md5=example";
     let json = serde_json::json!({"pmcid":"PMC123", "pdf_url":uri}).to_string();
     operator.write("metadata/article.json", json).await.unwrap();
-    let error = reader.read("metadata/article.json", 0).await.unwrap_err();
+    let error = reader.read("metadata/article.json").await.unwrap_err();
     assert!(
         matches!(error, PmcReadError::Pdf(ReadError::Storage { source_uri, source })
         if source_uri == uri && source.kind() == opendal::ErrorKind::NotFound)

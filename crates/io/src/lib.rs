@@ -13,7 +13,7 @@
 //!
 //! async fn ingest(operator: &opendal::Operator) -> Result<(), Box<dyn std::error::Error>> {
 //!     let metadata = PdfMetadata::new(
-//!         "PMC123", "s3://example/PMC123.pdf", 1_700_000_000_000_000,
+//!         "PMC123", "s3://example/PMC123.pdf",
 //!     );
 //!     let record = read_pdf(operator, "PMC123.pdf", metadata).await?;
 //!     let batch = to_record_batch(&[record])?;
@@ -36,9 +36,8 @@
 //! async fn ingest_article(
 //!     operator: opendal::Operator,
 //!     metadata_path: &str,
-//!     retrieved_at: i64,
 //! ) -> Result<Option<pmc_arrow::PdfRecord>, pmc_io::PmcReadError> {
-//!     PmcReader::new(operator).read(metadata_path, retrieved_at).await
+//!     PmcReader::new(operator).read(metadata_path).await
 //! }
 //! ```
 

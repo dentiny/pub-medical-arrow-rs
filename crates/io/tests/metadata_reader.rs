@@ -27,7 +27,7 @@ async fn stream_preserves_optional_fields_and_handles_articles_without_pdfs() {
             .unwrap();
         assert_eq!(input.position(), json.len() as u64);
         assert_eq!(source.raw_metadata_json, json);
-        assert!(source.into_pdf_metadata(0, None).unwrap().is_none());
+        assert!(source.into_pdf_metadata(None).unwrap().is_none());
     }
     let json =
         r#"{"\u0070mcid":"PMC123","pmid":"42","pmid":"00042","pdf_url":"s3://example/a.pdf"}"#;
@@ -35,7 +35,7 @@ async fn stream_preserves_optional_fields_and_handles_articles_without_pdfs() {
         .read()
         .await
         .unwrap();
-    let metadata = source.into_pdf_metadata(0, None).unwrap().unwrap();
+    let metadata = source.into_pdf_metadata(None).unwrap().unwrap();
     assert_eq!(metadata.pmid.as_deref(), Some("00042"));
     assert_eq!(metadata.pmc_version, None);
     assert_eq!(metadata.source_last_modified, None);
@@ -64,7 +64,7 @@ async fn malformed_json_and_mapped_field_types_keep_source_context() {
             .read()
             .await
             .unwrap();
-        let error = source.into_pdf_metadata(0, None).unwrap_err();
+        let error = source.into_pdf_metadata(None).unwrap_err();
         assert!(
             matches!(error, MetadataReadError::InvalidJson { source_uri, .. } if source_uri == METADATA_URI),
             "input: {json}"

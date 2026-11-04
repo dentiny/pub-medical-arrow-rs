@@ -15,12 +15,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let operator =
         Operator::new(Fs::default().root(root.to_str().ok_or("invalid mirror directory")?))?;
     let reader = PmcReader::new(operator);
-    let retrieved_at = i64::try_from(
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)?
-            .as_micros(),
-    )?;
-    let summary = match reader.read(&args[1], retrieved_at).await? {
+    let summary = match reader.read(&args[1]).await? {
         Some(record) => {
             let batch = to_record_batch(std::slice::from_ref(&record))?;
             format!(

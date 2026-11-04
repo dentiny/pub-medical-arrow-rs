@@ -11,12 +11,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     let path = tokio::fs::canonicalize(&args[1]).await?;
     let pdf = tokio::fs::read(&path).await?;
-    let retrieved_at = i64::try_from(
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)?
-            .as_micros(),
-    )?;
-    let metadata = PdfMetadata::new(&args[0], path.to_string_lossy(), retrieved_at);
+    let metadata = PdfMetadata::new(&args[0], path.to_string_lossy());
     let record = PdfRecord::try_new(pdf, metadata)?;
     let batch = to_record_batch(std::slice::from_ref(&record))?;
     let summary = format!(

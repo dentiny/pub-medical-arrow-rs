@@ -21,12 +21,11 @@ impl PmcMetadata {
     ///
     /// Missing or null `pdf_url` returns `Ok(None)`. Invalid mapped field types
     /// return an error with the metadata source location.
-    /// Both timestamps are signed microseconds since the Unix epoch in UTC.
-    /// `source_last_modified` describes the PDF, not the JSON object or inventory
+    /// `source_last_modified` is signed microseconds since the Unix epoch in UTC.
+    /// It describes the PDF, not the JSON object or inventory
     /// entry; pass `None` when unknown. No clock or stat is read.
     pub fn into_pdf_metadata(
         self,
-        retrieved_at: i64,
         source_last_modified: Option<i64>,
     ) -> Result<Option<PdfMetadata>, MetadataReadError> {
         (|| -> serde_json::Result<Option<PdfMetadata>> {
@@ -47,7 +46,6 @@ impl PmcMetadata {
                 license: field(&fields, "license_code")?,
                 source_uri,
                 source_last_modified,
-                retrieved_at,
                 raw_metadata_json: Some(self.raw_metadata_json),
             }))
         })()

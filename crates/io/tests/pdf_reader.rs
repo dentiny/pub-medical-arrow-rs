@@ -12,7 +12,7 @@ const PDF: &[u8] = include_bytes!("../../rs/tests/fixtures/tiny.pdf");
 const SOURCE_URI: &str = "file:///fixtures/tiny.pdf";
 
 fn metadata() -> PdfMetadata {
-    let mut metadata = PdfMetadata::new("pmc00123", SOURCE_URI, 1_700_000_000_000_123);
+    let mut metadata = PdfMetadata::new("pmc00123", SOURCE_URI);
     metadata.title = Some("医学 αβ".into());
     metadata.raw_metadata_json = Some(" {\"unmapped\":1e9999} \n".into());
     metadata
@@ -30,7 +30,6 @@ async fn filesystem_pdf_preserves_bytes_and_metadata_through_arrow_conversion() 
     assert_eq!(record.pdf_size_bytes(), PDF.len() as u64);
     assert_eq!(record.metadata().pmcid, "PMC123");
     assert_eq!(record.metadata().source_uri, SOURCE_URI);
-    assert_eq!(record.metadata().retrieved_at, metadata().retrieved_at);
     assert_eq!(record.metadata().source_last_modified, None);
     assert_eq!(record.metadata().title, metadata().title);
     assert_eq!(

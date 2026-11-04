@@ -32,12 +32,7 @@ pmc-arrow = { path = "/path/to/pub-medical-arrow-rs/crates/rs" }
 use pmc_arrow::{to_record_batch, PdfMetadata, PdfRecord};
 
 fn convert(pdf: Vec<u8>) -> pmc_arrow::Result<arrow_array::RecordBatch> {
-    // Timestamps are UTC microseconds since the Unix epoch, supplied by the caller.
-    let mut metadata = PdfMetadata::new(
-        "PMC123",
-        "file:///data/PMC123.pdf",
-        1_700_000_000_000_000,
-    );
+    let mut metadata = PdfMetadata::new("PMC123", "file:///data/PMC123.pdf");
     metadata.title = Some("Example article".into());
     // Leave version, PMID, DOI and license absent unless the source provides them.
     let record = PdfRecord::try_new(pdf, metadata)?;
@@ -74,15 +69,14 @@ Configure an OpenDAL operator whose root corresponds to the root of the
 
 ```rust
 let reader = pmc_io::PmcReader::new(operator);
-if let Some(record) = reader.read("metadata/PMC123.2.json", retrieved_at).await? {
+if let Some(record) = reader.read("metadata/PMC123.2.json").await? {
     let batch = pmc_arrow::to_record_batch(&[record])?;
 }
 ```
 
 The reader fetches metadata, resolves its `pdf_url`, then reads that PDF.
-Missing PDF URLs return `None`. `retrieved_at` is caller-supplied UTC microseconds;
-PDF modification time remains unknown. The original source URL, including its
-checksum query, is preserved. The query is excluded from the object path;
+Missing PDF URLs return `None`. PDF modification time remains unknown. The
+original source URL, including its checksum query, is preserved. The query is excluded from the object path;
 the source MD5 is not verified.
 
 ```sh
@@ -115,7 +109,7 @@ including articles that have no PDF.
 
 ```rust
 let article = pmc_io::read_metadata(operator, "metadata/PMC123.2.json").await?;
-if let Some(metadata) = article.into_pdf_metadata(retrieved_at, None)? {
+if let Some(metadata) = article.into_pdf_metadata(None)? {
     // The object path is supplied separately from the source PDF URL.
     let record = pmc_io::read_pdf(operator, "PMC123.2/article.pdf", metadata).await?;
     let batch = pmc_arrow::to_record_batch(&[record])?;
@@ -125,14 +119,14 @@ if let Some(metadata) = article.into_pdf_metadata(retrieved_at, None)? {
 Source JSON is preserved verbatim; article fields are extracted at conversion.
 The adapter maps `version`, `license_code`
 and `pdf_url` into the PDF snapshot fields; numeric PMIDs become decimal strings.
-Retrieval and PDF modification times remain explicit caller inputs in UTC
-microseconds. See [metadata mapping and errors](docs/metadata.md).
+PDF modification time can be supplied explicitly in UTC microseconds.
+See [metadata mapping and errors](docs/metadata.md).
 
 ## Conversion contract
 
 - [Schema and validation details](docs/schema.md).
 - PDF data is `LargeBinary`, the digest is `FixedSizeBinary(32)`, and long text
-  fields are `LargeUtf8`. Timestamps carry a UTC timezone in Arrow.
+  fields are `LargeUtf8`. The modification timestamp carries a UTC timezone in Arrow.
 - Missing optional values stay null; supplied empty strings stay empty. Unknown
   versions are never replaced with version 1.
 - Raw JSON must be an object and is retained verbatim, including unknown fields,
