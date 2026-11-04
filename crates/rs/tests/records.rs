@@ -2,7 +2,7 @@ use arrow_array::{
     Array, FixedSizeBinaryArray, LargeBinaryArray, LargeStringArray, RecordBatch, StringArray,
     TimestampMicrosecondArray, UInt32Array, UInt64Array,
 };
-use pmc_arrow::{schema, to_record_batch, Error, PdfMetadata, PdfRecord};
+use pmc_arrow::{schema, to_record_batch, Error, PdfMetadata, PdfRecord, PdfRecordOptions};
 
 const PDF: &[u8] = include_bytes!("fixtures/tiny.pdf");
 const LAST_MODIFIED: i64 = 1_793_731_234_567_889;
@@ -13,6 +13,17 @@ fn metadata() -> PdfMetadata {
 
 fn record() -> PdfRecord {
     PdfRecord::try_new(PDF.to_vec(), metadata()).unwrap()
+}
+
+fn hashed_record(pdf: Vec<u8>, metadata: PdfMetadata) -> PdfRecord {
+    PdfRecord::try_new_with_options(
+        pdf,
+        metadata,
+        PdfRecordOptions {
+            compute_pdf_sha256: true,
+        },
+    )
+    .unwrap()
 }
 
 fn column<'a, T: Array + 'static>(batch: &'a RecordBatch, name: &str) -> &'a T {
@@ -43,7 +54,8 @@ fn preserves_all_values_nulls_binary_and_microseconds() {
     full.license = Some("CC BY 4.0".into());
     full.source_last_modified = Some(LAST_MODIFIED);
     full.raw_metadata_json = Some(raw.into());
-    let complete = PdfRecord::try_new(PDF.to_vec(), full.clone()).unwrap();
+    let complete = hashed_record(PDF.to_vec(), full.clone());
+    let digest = *complete.pdf_sha256().unwrap();
     let batch = to_record_batch(&[complete, record()]).unwrap();
     assert_eq!(batch.schema(), schema());
     assert_eq!(batch.num_rows(), 2);
@@ -101,23 +113,38 @@ fn preserves_all_values_nulls_binary_and_microseconds() {
     }
     assert_eq!(
         column::<FixedSizeBinaryArray>(&batch, "pdf_sha256").value(0),
-        record().pdf_sha256()
+        digest
     );
+    assert!(column::<FixedSizeBinaryArray>(&batch, "pdf_sha256").is_null(1));
 }
 
 #[test]
-fn digest_matches_independent_fixture_checksum() {
+fn sha256_is_opt_in_and_matches_independent_fixture_checksum() {
     // Generated independently with Python hashlib, stored alongside the fixture.
     let expected = include_str!("fixtures/tiny.sha256").trim();
-    let record = record();
+    let default_record = record();
+    assert_eq!(default_record.pdf_sha256(), None);
+    let record = hashed_record(PDF.to_vec(), metadata());
     let actual: String = record
         .pdf_sha256()
+        .unwrap()
         .iter()
         .map(|b| format!("{b:02x}"))
         .collect();
     assert_eq!(actual, expected);
     assert_eq!(record.pdf_size_bytes(), PDF.len() as u64);
     assert_eq!(record.pdf_bytes(), PDF);
+    let digest = *record.pdf_sha256().unwrap();
+    let batch = to_record_batch(&[default_record, record]).unwrap();
+    let hashes = column::<FixedSizeBinaryArray>(&batch, "pdf_sha256");
+    assert!(batch
+        .schema()
+        .field_with_name("pdf_sha256")
+        .unwrap()
+        .is_nullable());
+    assert!(hashes.is_null(0));
+    assert!(!hashes.is_null(1));
+    assert_eq!(hashes.value(1), digest);
 }
 
 #[test]
@@ -248,14 +275,14 @@ fn keeps_empty_strings_distinct_from_null_and_does_not_invent_versions() {
 
 #[test]
 fn preserves_order_duplicates_and_content_revisions() {
-    let first = record();
+    let first = hashed_record(PDF.to_vec(), metadata());
     let mut updated_pdf = PDF.to_vec();
     updated_pdf.extend_from_slice(b"\n% subsequent revision\n");
-    let updated = PdfRecord::try_new(updated_pdf, metadata()).unwrap();
+    let updated = hashed_record(updated_pdf, metadata());
     assert_ne!(first.pdf_sha256(), updated.pdf_sha256());
     let mut other_metadata = metadata();
     other_metadata.pmcid = "PMC456".into();
-    let other = PdfRecord::try_new(PDF.to_vec(), other_metadata).unwrap();
+    let other = hashed_record(PDF.to_vec(), other_metadata);
     assert_eq!(first.pdf_sha256(), other.pdf_sha256());
     let batch = to_record_batch(&[updated.clone(), other, first.clone(), first]).unwrap();
     assert_eq!(batch.num_rows(), 4);
@@ -302,7 +329,7 @@ fn arrow_ipc_round_trip_preserves_schema_and_every_column() {
     meta.license = Some("CC-BY-4.0".into());
     meta.source_last_modified = Some(-1);
     meta.raw_metadata_json = Some(" {\"unknown\":1e9999} \n".into());
-    let full = PdfRecord::try_new(PDF.to_vec(), meta).unwrap();
+    let full = hashed_record(PDF.to_vec(), meta);
     for batch in [
         to_record_batch(&[]).unwrap(),
         to_record_batch(&[record(), full]).unwrap(),

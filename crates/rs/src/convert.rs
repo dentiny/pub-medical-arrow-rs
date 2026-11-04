@@ -24,7 +24,11 @@ pub fn to_record_batch(records: &[PdfRecord]) -> Result<RecordBatch> {
     let mut hashes = FixedSizeBinaryBuilder::with_capacity(records.len(), 32);
     for record in records {
         pdf.append_value(record.pdf_bytes());
-        hashes.append_value(record.pdf_sha256())?;
+        if let Some(digest) = record.pdf_sha256() {
+            hashes.append_value(digest)?;
+        } else {
+            hashes.append_null();
+        }
     }
 
     let columns: Vec<ArrayRef> = vec![

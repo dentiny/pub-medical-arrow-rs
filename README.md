@@ -3,7 +3,7 @@
 Convert metadata and PDF files from the
 [PubMed Central (PMC) Article Datasets](https://registry.opendata.aws/ncbi-pmc/)
 into Apache Arrow `RecordBatch` values. Each row contains one PDF snapshot:
-article metadata, original PDF bytes, their SHA-256 digest, and source provenance.
+article metadata, original PDF bytes, an optional SHA-256 digest, and source provenance.
 
 PMC is an archive of full-text biomedical and life sciences articles. See the
 [dataset documentation](https://pmc-oa-opendata.s3.amazonaws.com/README.txt)
@@ -33,7 +33,9 @@ Records arrive in completion order; articles without PDFs are skipped.
 The output is an Arrow IPC **file**, including a final partial batch. No PDFs
 produces a valid empty file with the PMC schema. Existing output files are
 never overwritten; on a conversion error, the incomplete output is removed.
-Use `pmc-arrow --help` for all options.
+SHA-256 computation is off by default. Add `--compute-pdf-sha256` to store a
+whole-file content fingerprint for each PDF. This does not verify the PDF
+against an expected source checksum. Use `pmc-arrow --help` for all options.
 
 ## Quick start
 
@@ -70,8 +72,21 @@ let record = PdfRecord::try_new(pdf_bytes, metadata)?;
 let batch = to_record_batch(&[record])?;
 ```
 
-This validates the PDF header and metadata, computes SHA-256, and creates a
-one-row Arrow batch.
+This validates the PDF header and metadata and creates a one-row Arrow batch.
+It does not hash the PDF by default. To compute SHA-256 over the complete payload,
+construct the record with explicit options instead:
+
+```rust
+use pmc_arrow::{PdfMetadata, PdfRecord, PdfRecordOptions};
+
+let options = PdfRecordOptions { compute_pdf_sha256: true };
+let record = PdfRecord::try_new_with_options(pdf_bytes, metadata, options)?;
+assert!(record.pdf_sha256().is_some());
+```
+
+`pdf_sha256()` returns `None` when computation is disabled; Arrow stores this as
+null. Enabling the option computes a fingerprint, without comparing against a
+source checksum. PDF header and metadata validation always run.
 
 ## Read a PMC article
 
@@ -99,6 +114,10 @@ The reader loads metadata and its referenced PDF. An article without a PDF URL
 returns `None`. The mirror must preserve bucket paths: for example,
 `metadata/PMC123.2.json` and `PMC123.2/article.pdf`, where the JSON's `pdf_url`
 is `s3://pmc-oa-opendata/PMC123.2/article.pdf`.
+
+SHA-256 is also off for I/O readers. Enable it with
+`PmcReader::new(operator).with_options(PdfRecordOptions { compute_pdf_sha256: true })`;
+the same options apply to `read` and `read_many`.
 
 See the runnable [single-article example](crates/io/examples/pmc.rs).
 
@@ -137,7 +156,7 @@ Here, `8` is the number of concurrent article reads and `32` is the batch row li
 - Each PDF is fully loaded into memory and copied into Arrow buffers. Concurrency
   and batch size limit counts, not bytes; choose them to fit available memory.
 
-I/O is async; validation, hashing and Arrow conversion are synchronous.
+I/O is async; validation, optional hashing and Arrow conversion are synchronous.
 
 ## Arrow schema
 
@@ -154,7 +173,7 @@ empty batches. Schema metadata contains `pmc_arrow.row_kind = "pdf_snapshot"`.
 | `license` | `Utf8` | Yes | Source license label |
 | `source_uri` | `Utf8` | No | Original PDF location, including query parameters |
 | `source_last_modified` | `Timestamp(Microsecond, "UTC")` | Yes | PDF modification time: signed microseconds since the Unix epoch (1970-01-01 UTC) |
-| `pdf_sha256` | `FixedSizeBinary(32)` | No | SHA-256 of the exact PDF payload, stored as 32 raw bytes, not hex |
+| `pdf_sha256` | `FixedSizeBinary(32)` | Yes | SHA-256 of the exact PDF payload as 32 raw bytes; null unless computation is enabled |
 | `pdf_size_bytes` | `UInt64` | No | PDF payload length in bytes |
 | `pdf_bytes` | `LargeBinary` | No | Complete, unmodified PDF payload |
 | `raw_metadata_json` | `LargeUtf8` | Yes | Verbatim source JSON object, including unknown fields and whitespace |
@@ -180,7 +199,11 @@ Use these APIs when you need to control metadata mapping or PDF paths yourself:
 | OpenDAL metadata object | `read_metadata(&operator, path).await` | `PmcMetadata` |
 | futures `AsyncRead` JSON stream | `MetadataReader::new(input, source_uri).read().await` | `PmcMetadata` |
 
-All four APIs are exported by `pmc-io` and return `Result`. OpenDAL PDF reads use
+To enable SHA-256 for separate PDF reads, pass `PdfRecordOptions` to
+`read_pdf_with_options(&operator, path, metadata, options).await`, or use
+`PdfReader::new(input, metadata).with_options(options).read().await`.
+
+These APIs are exported by `pmc-io` and return `Result`. OpenDAL PDF reads use
 native buffer chunks without an `AsyncRead` adapter. Stream reader constructors
 perform no I/O; `read` consumes the reader. `PmcMetadata` retains the original
 JSON even for articles without PDFs. Call

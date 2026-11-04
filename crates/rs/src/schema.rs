@@ -18,7 +18,7 @@ pub fn schema() -> SchemaRef {
                 Field::new("license", DataType::Utf8, true),
                 Field::new("source_uri", DataType::Utf8, false),
                 Field::new("source_last_modified", timestamp, true),
-                Field::new("pdf_sha256", DataType::FixedSizeBinary(32), false),
+                Field::new("pdf_sha256", DataType::FixedSizeBinary(32), true),
                 Field::new("pdf_size_bytes", DataType::UInt64, false),
                 Field::new("pdf_bytes", DataType::LargeBinary, false),
                 Field::new("raw_metadata_json", DataType::LargeUtf8, true),

@@ -6,6 +6,8 @@
 //! using [`read_metadata`] or [`MetadataReader`], then map it with
 //! [`PmcMetadata::into_pdf_metadata`]. Use [`discover_metadata`] to stream JSON
 //! paths under a metadata prefix. No clock reads or dataset writes are performed.
+//! SHA-256 computation is off by default. Use [`read_pdf_with_options`],
+//! [`PdfReader::with_options`] or [`PmcReader::with_options`] to enable it.
 //!
 //! ```no_run
 //! use pmc_arrow::{to_record_batch, PdfMetadata};
@@ -54,5 +56,5 @@ pub use discovery::discover_metadata;
 pub use error::{MetadataReadError, PmcReadError, ReadError};
 pub use metadata::PmcMetadata;
 pub use metadata_reader::{read_metadata, MetadataReader};
-pub use pdf_reader::{read_pdf, PdfReader};
+pub use pdf_reader::{read_pdf, read_pdf_with_options, PdfReader};
 pub use pmc_reader::PmcReader;

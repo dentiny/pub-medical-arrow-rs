@@ -26,4 +26,8 @@ pub struct Args {
     /// Maximum rows per Arrow batch, not a byte limit
     #[arg(long, default_value = "32")]
     pub batch_size: NonZeroUsize,
+
+    /// Compute SHA-256 for each entire PDF (does not verify a source checksum)
+    #[arg(long)]
+    pub compute_pdf_sha256: bool,
 }

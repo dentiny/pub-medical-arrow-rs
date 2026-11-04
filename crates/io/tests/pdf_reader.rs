@@ -5,8 +5,8 @@ use std::task::{Context, Poll};
 use arrow_array::LargeBinaryArray;
 use futures::io::{AsyncRead, AsyncReadExt, Cursor};
 use opendal::{services::Fs, Operator};
-use pmc_arrow::{to_record_batch, PdfMetadata};
-use pmc_io::{read_pdf, PdfReader, ReadError};
+use pmc_arrow::{to_record_batch, PdfMetadata, PdfRecordOptions};
+use pmc_io::{read_pdf, read_pdf_with_options, PdfReader, ReadError};
 
 const PDF: &[u8] = include_bytes!("../../rs/tests/fixtures/tiny.pdf");
 const SOURCE_URI: &str = "file:///fixtures/tiny.pdf";
@@ -36,15 +36,7 @@ async fn filesystem_pdf_preserves_bytes_and_metadata_through_arrow_conversion() 
         record.metadata().raw_metadata_json,
         metadata().raw_metadata_json
     );
-    let digest: String = record
-        .pdf_sha256()
-        .iter()
-        .map(|b| format!("{b:02x}"))
-        .collect();
-    assert_eq!(
-        digest,
-        include_str!("../../rs/tests/fixtures/tiny.sha256").trim()
-    );
+    assert_eq!(record.pdf_sha256(), None);
     let batch = to_record_batch(&[record]).unwrap();
     let bytes = batch
         .column_by_name("pdf_bytes")
@@ -60,7 +52,35 @@ async fn borrowed_stream_reads_complete_pdf() {
     let mut input = Cursor::new(PDF);
     let record = PdfReader::new(&mut input, metadata()).read().await.unwrap();
     assert_eq!(record.pdf_bytes(), PDF);
+    assert_eq!(record.pdf_sha256(), None);
     assert_eq!(input.position(), PDF.len() as u64);
+}
+
+#[tokio::test]
+async fn storage_and_stream_readers_compute_sha256_only_when_requested() {
+    let options = PdfRecordOptions {
+        compute_pdf_sha256: true,
+    };
+    let stored = read_pdf_with_options(&operator(), "tiny.pdf", metadata(), options)
+        .await
+        .unwrap();
+    let streamed = PdfReader::new(Cursor::new(PDF), metadata())
+        .with_options(options)
+        .read()
+        .await
+        .unwrap();
+    for record in [stored, streamed] {
+        let digest: String = record
+            .pdf_sha256()
+            .unwrap()
+            .iter()
+            .map(|b| format!("{b:02x}"))
+            .collect();
+        assert_eq!(
+            digest,
+            include_str!("../../rs/tests/fixtures/tiny.sha256").trim()
+        );
+    }
 }
 
 struct FailingReader;

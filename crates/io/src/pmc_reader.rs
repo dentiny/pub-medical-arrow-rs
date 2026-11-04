@@ -1,8 +1,8 @@
 use opendal::Operator;
-use pmc_arrow::PdfRecord;
+use pmc_arrow::{PdfRecord, PdfRecordOptions};
 
 use crate::validation::validate_pdf_path;
-use crate::{read_metadata, read_pdf, PmcReadError};
+use crate::{read_metadata, read_pdf_with_options, PmcReadError};
 
 /// Read an article's metadata and its referenced PDF through one operator.
 ///
@@ -10,12 +10,24 @@ use crate::{read_metadata, read_pdf, PmcReadError};
 /// with the same object paths. Backend configuration remains caller-controlled.
 pub struct PmcReader {
     operator: Operator,
+    options: PdfRecordOptions,
 }
 
 impl PmcReader {
     /// Store the operator without performing I/O.
     pub fn new(operator: Operator) -> Self {
-        Self { operator }
+        Self {
+            operator,
+            options: PdfRecordOptions::default(),
+        }
+    }
+
+    /// Configure all records read by [`Self::read`] or [`Self::read_many`].
+    /// SHA-256 computation is off by default; enabling it hashes entire PDFs
+    /// synchronously, without verifying a source checksum.
+    pub fn with_options(mut self, options: PdfRecordOptions) -> Self {
+        self.options = options;
+        self
     }
 
     /// Read one metadata object and the PDF named by its `pdf_url`.
@@ -30,6 +42,8 @@ impl PmcReader {
             return Ok(None);
         };
         let path = validate_pdf_path(&metadata.source_uri)?;
-        Ok(Some(read_pdf(&self.operator, &path, metadata).await?))
+        Ok(Some(
+            read_pdf_with_options(&self.operator, &path, metadata, self.options).await?,
+        ))
     }
 }

@@ -7,7 +7,7 @@ use std::process::ExitCode;
 use anyhow::{Context, Result};
 use clap::Parser;
 use futures::{pin_mut, TryStreamExt};
-use pmc_arrow::PdfBatchBuilder;
+use pmc_arrow::{PdfBatchBuilder, PdfRecordOptions};
 use pmc_io::{discover_metadata, PmcReader};
 use tokio::{
     fs,
@@ -57,7 +57,9 @@ async fn run(args: Args) -> Result<()> {
     let conversion: Result<(usize, usize)> = async {
         let mut writer = IpcWriter::new(output)?;
         let mut builder = PdfBatchBuilder::new(args.batch_size.get())?;
-        let reader = PmcReader::new(operator);
+        let reader = PmcReader::new(operator).with_options(PdfRecordOptions {
+            compute_pdf_sha256: args.compute_pdf_sha256,
+        });
         let records = reader.read_many(paths, args.parallelism.get());
         pin_mut!(records);
         let (mut rows, mut batches) = (0, 0);

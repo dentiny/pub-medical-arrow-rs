@@ -3,6 +3,10 @@
 //! Each row is one PDF snapshot. Callers supply source metadata;
 //! this crate performs no network access, file I/O, PDF text extraction or Lance
 //! writes. PDF validation is limited to the header, not document integrity.
+//! Whole-file SHA-256 computation is off by default; enable it with
+//! [`PdfRecordOptions`] and [`PdfRecord::try_new_with_options`]. An uncomputed
+//! digest is `None` in a record and null in Arrow. Hashing does not verify a
+//! source checksum.
 //!
 //! ```
 //! use pmc_arrow::{to_record_batch, PdfMetadata, PdfRecord};
@@ -26,5 +30,5 @@ mod validation;
 pub use batch::PdfBatchBuilder;
 pub use convert::to_record_batch;
 pub use error::{Error, Result};
-pub use model::{PdfMetadata, PdfRecord, Sha256Digest};
+pub use model::{PdfMetadata, PdfRecord, PdfRecordOptions, Sha256Digest};
 pub use schema::schema;

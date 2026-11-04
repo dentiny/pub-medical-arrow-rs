@@ -5,6 +5,16 @@ use crate::{Error, Result};
 /// A SHA-256 digest stored as 32 raw bytes.
 pub type Sha256Digest = [u8; 32];
 
+/// Optional work performed when constructing a PDF record.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct PdfRecordOptions {
+    /// Compute SHA-256 over the entire PDF payload. Disabled by default.
+    ///
+    /// This creates a content fingerprint; it does not verify an expected checksum.
+    /// PDF header and metadata validation always run, regardless of this option.
+    pub compute_pdf_sha256: bool,
+}
+
 /// Caller-supplied metadata for one PDF snapshot.
 ///
 /// Source modification times are signed microseconds since the Unix epoch in UTC.
@@ -50,7 +60,7 @@ impl PdfMetadata {
     }
 }
 
-/// A validated, immutable PDF snapshot with a computed SHA-256 digest.
+/// A validated, immutable PDF snapshot with an optional SHA-256 digest.
 ///
 /// Fields are private to prevent bytes, length and digest from diverging after
 /// validation. Construction takes ownership of the PDF vector without copying.
@@ -59,7 +69,7 @@ impl PdfMetadata {
 pub struct PdfRecord {
     metadata: PdfMetadata,
     pdf_bytes: Vec<u8>,
-    pdf_sha256: Sha256Digest,
+    pdf_sha256: Option<Sha256Digest>,
 }
 
 impl std::fmt::Debug for PdfRecord {
@@ -73,12 +83,24 @@ impl std::fmt::Debug for PdfRecord {
 }
 
 impl PdfRecord {
-    /// Validate inputs, canonicalize the PMCID, and hash the original PDF bytes.
+    /// Validate inputs and canonicalize the PMCID, without computing SHA-256.
     ///
     /// Header validation requires `%PDF-x.y` at byte zero followed by CR or LF.
     /// It rejects obvious HTML/error responses but does not parse objects, xref,
     /// encryption, signatures or EOF markers and cannot detect truncated PDFs.
-    pub fn try_new(pdf_bytes: Vec<u8>, mut metadata: PdfMetadata) -> Result<Self> {
+    pub fn try_new(pdf_bytes: Vec<u8>, metadata: PdfMetadata) -> Result<Self> {
+        Self::try_new_with_options(pdf_bytes, metadata, PdfRecordOptions::default())
+    }
+
+    /// Validate inputs, optionally computing SHA-256 over the complete PDF bytes.
+    ///
+    /// Hashing is synchronous and does not compare against a source checksum.
+    /// The same header and metadata validation as [`Self::try_new`] always applies.
+    pub fn try_new_with_options(
+        pdf_bytes: Vec<u8>,
+        mut metadata: PdfMetadata,
+        options: PdfRecordOptions,
+    ) -> Result<Self> {
         metadata.pmcid = normalize_pmcid(&metadata.pmcid)?;
         if metadata.pmc_version == Some(0) {
             return Err(Error::InvalidVersion);
@@ -105,7 +127,9 @@ impl PdfRecord {
         {
             return Err(Error::InvalidPdfHeader);
         }
-        let pdf_sha256 = Sha256::digest(&pdf_bytes).into();
+        let pdf_sha256 = options
+            .compute_pdf_sha256
+            .then(|| Sha256::digest(&pdf_bytes).into());
         Ok(Self {
             metadata,
             pdf_bytes,
@@ -121,8 +145,9 @@ impl PdfRecord {
         &self.pdf_bytes
     }
 
-    pub fn pdf_sha256(&self) -> &Sha256Digest {
-        &self.pdf_sha256
+    /// Return the whole-file SHA-256 digest, or `None` when hashing was disabled.
+    pub fn pdf_sha256(&self) -> Option<&Sha256Digest> {
+        self.pdf_sha256.as_ref()
     }
 
     pub fn pdf_size_bytes(&self) -> u64 {
