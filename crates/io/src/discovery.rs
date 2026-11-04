@@ -18,9 +18,11 @@ use crate::PmcReadError;
 /// async fn read_prefix(operator: opendal::Operator) -> Result<(), PmcReadError> {
 ///     let paths = discover_metadata(&operator, "metadata/").await?;
 ///     let reader = PmcReader::new(operator);
-///     pin_mut!(paths);
-///     while let Some(path) = paths.try_next().await? {
-///         let _record = reader.read(&path).await?;
+///     let records = reader.read_many(paths, 8);
+///     pin_mut!(records);
+///     while let Some(record) = records.try_next().await? {
+///         // Consume the completed record or append it to a PdfBatchBuilder.
+///         let _bytes = record.pdf_bytes();
 ///     }
 ///     Ok(())
 /// }

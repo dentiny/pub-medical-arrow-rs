@@ -11,9 +11,27 @@ collect all paths, sort them or remove duplicates. A listing error includes the
 requested prefix, is emitted once and ends the stream. Dropping the stream stops
 further listing; backend pagination and buffering remain backend-controlled.
 
-Pass each path to `PmcReader::read` to fetch its metadata and referenced PDF.
-The same path stream can feed a concurrent reader without requiring all paths
-in memory. Listing does not select article versions or filter licenses.
+Pass the path stream directly to `PmcReader::read_many`:
+
+```rust
+let paths = discover_metadata(&operator, "metadata/").await?;
+let reader = PmcReader::new(operator);
+let records = reader.read_many(paths, parallelism);
+```
+
+Records arrive as reads complete, without an input-order guarantee. Feed each
+record into `PdfBatchBuilder::append`, consume returned batches, and call
+`flush()` when the record stream ends to retrieve the partial final batch.
+Listing does not select article versions or filter licenses.
+
+The `ingest` example connects all three stages without collecting the entire
+path or record stream:
+
+```sh
+cargo run --locked -p pmc-io --example ingest -- /path/to/pmc-mirror metadata/ 8 128
+```
+
+It prints batch summaries; it does not write a dataset.
 
 This API lists live storage objects. Parsing PMC inventory reports is separate
 work; it is not needed when the caller already has a path stream.

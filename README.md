@@ -132,7 +132,9 @@ PDF modification time can be supplied explicitly in UTC microseconds.
 See [metadata mapping and errors](docs/metadata.md).
 
 Use `discover_metadata(&operator, "metadata/").await` to stream metadata JSON
-paths from a recursive listing. See [metadata discovery](docs/discovery.md).
+paths directly into `reader.read_many(paths, parallelism)`, then append records
+to `PdfBatchBuilder`. The `ingest` example connects these stages and flushes the
+last partial batch. See [metadata discovery](docs/discovery.md).
 
 ## Conversion contract
 
