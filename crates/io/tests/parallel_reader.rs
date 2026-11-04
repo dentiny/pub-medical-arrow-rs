@@ -11,7 +11,7 @@ use pmc_io::PmcReader;
 const PDF: &[u8] = include_bytes!("../../rs/tests/fixtures/tiny.pdf");
 
 #[tokio::test]
-async fn reads_ordered_records_with_bounded_prefetch_and_skips_articles_without_pdf() {
+async fn reads_records_with_bounded_prefetch_and_skips_articles_without_pdf() {
     let root = std::env::temp_dir().join(format!(
         "pmc-parallel-{}-{}",
         std::process::id(),
@@ -58,17 +58,16 @@ async fn reads_ordered_records_with_bounded_prefetch_and_skips_articles_without_
     assert_eq!(requested.load(Ordering::SeqCst), 0);
     pin_mut!(records);
     let first = records.next().await.unwrap().unwrap();
-    assert_eq!(first.metadata().pmcid, "PMC3");
     assert_eq!(first.pdf_bytes(), PDF);
     assert_eq!(requested.load(Ordering::SeqCst), 2);
     let remaining: Vec<_> = records.try_collect().await.unwrap();
-    assert_eq!(
-        remaining
-            .iter()
-            .map(|r| r.metadata().pmcid.as_str())
-            .collect::<Vec<_>>(),
-        ["PMC1", "PMC2"]
-    );
+    // Output order is not part of the API contract.
+    let mut ids: Vec<_> = std::iter::once(&first)
+        .chain(remaining.iter())
+        .map(|record| record.metadata().pmcid.as_str())
+        .collect();
+    ids.sort_unstable();
+    assert_eq!(ids, ["PMC1", "PMC2", "PMC3"]);
     assert!(remaining.iter().all(|r| r.pdf_bytes() == PDF));
     assert_eq!(requested.load(Ordering::SeqCst), 4);
     operator.delete_with("/").recursive(true).await.unwrap();

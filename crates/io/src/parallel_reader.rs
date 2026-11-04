@@ -4,11 +4,12 @@ use pmc_arrow::PdfRecord;
 use crate::{PmcReadError, PmcReader};
 
 impl PmcReader {
-    /// Read article paths concurrently, yielding PDF records in input order.
+    /// Read article paths concurrently, yielding PDF records as reads complete.
     ///
     /// At most `parallelism` articles are pending; zero is treated as one.
-    /// Articles without PDFs are skipped. The first input or read error is
-    /// yielded in input order, then the stream ends and pending reads are dropped.
+    /// Results are not ordered by input path: a slow article does not hold up
+    /// completed reads. Articles without PDFs are skipped. The first observed
+    /// input or read error is yielded, then the stream ends and drops pending reads.
     /// Dropping the stream also drops pending reads; no tasks are spawned.
     /// Construction performs no I/O, and reads advance only while polled.
     ///
@@ -44,7 +45,7 @@ impl PmcReader {
                 let path = path?;
                 self.read(&path).await
             })
-            .buffered(parallelism.max(1));
+            .buffer_unordered(parallelism.max(1));
         stream::try_unfold(Box::pin(reads), |mut reads| async move {
             while let Some(result) = reads.next().await {
                 if let Some(record) = result? {
