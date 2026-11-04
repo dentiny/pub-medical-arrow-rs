@@ -1,6 +1,7 @@
 use std::{num::NonZeroUsize, path::PathBuf};
 
 use clap::Parser;
+use pmc_arrow::PdfBatchConfig;
 
 #[derive(Parser)]
 #[command(
@@ -24,10 +25,17 @@ pub struct Args {
     pub parallelism: NonZeroUsize,
 
     /// Maximum rows per Arrow batch
-    #[arg(long, visible_alias = "batch-size", default_value = "32")]
+    #[arg(
+        long,
+        visible_alias = "batch-size",
+        default_value_t = NonZeroUsize::new(PdfBatchConfig::default().max_rows).unwrap()
+    )]
     pub max_rows: NonZeroUsize,
 
     /// Maximum buffered Arrow array memory bytes per batch (not process memory)
-    #[arg(long, default_value = "67108864")]
+    #[arg(
+        long,
+        default_value_t = NonZeroUsize::new(PdfBatchConfig::default().max_memory_bytes).unwrap()
+    )]
     pub max_memory_bytes: NonZeroUsize,
 }
