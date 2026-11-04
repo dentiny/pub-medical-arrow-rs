@@ -53,7 +53,7 @@ fn flushes_before_exceeding_memory_and_preserves_the_incoming_record() {
     assert_eq!(batch, to_record_batch(&[first]).unwrap());
     assert_eq!(
         builder.flush().unwrap().unwrap(),
-        to_record_batch(&[second.clone()]).unwrap()
+        to_record_batch(std::slice::from_ref(&second)).unwrap()
     );
     assert!(builder.flush().unwrap().is_none());
     // The byte count is reset by flush, so a subsequent row fits again.
