@@ -46,6 +46,9 @@ The record constructor takes ownership of the PDF vector. Its fields are
 immutable after validation; read them through `metadata()`, `pdf_bytes()`,
 `pdf_sha256()` and `pdf_size_bytes()`.
 
+For incremental conversion, `PdfBatchBuilder` emits full batches from appended
+records and flushes the remaining rows. See [PDF batching](docs/batching.md).
+
 Run the included example on a local PDF:
 
 ```sh
