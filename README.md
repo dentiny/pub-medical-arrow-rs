@@ -29,9 +29,9 @@ pmc-arrow s3://pmc-oa-opendata article.arrow --prefix PMC10009416.1/
 
 `--prefix` defaults to `metadata/`. Use `--parallelism 8`, `--max-rows 32`, and
 `--max-memory-bytes 67108864` to control concurrent reads, rows per batch, and
-estimated Arrow buffer bytes per batch (these are the defaults; 67108864 bytes
+buffered Arrow array memory bytes per batch (these are the defaults; 67108864 bytes
 is 64 MiB). `--batch-size` remains an alias for `--max-rows`. All limits must be
-positive. A single row exceeding the memory estimate limit is rejected.
+positive. A single row exceeding the Arrow memory limit is rejected.
 Records arrive in completion order; articles without PDFs are skipped.
 The output is an Arrow IPC **file**, including a final partial batch. No PDFs
 produces a valid empty file with the PMC schema. Existing output files are
@@ -124,7 +124,7 @@ let operator = opendal::Operator::new(
 Use `discover_metadata` → `PmcReader::read_many` → `PdfBatchBuilder` to process
 multiple articles. Batching groups PDF rows into columnar buffers so IPC can
 encode and write several rows together. Larger batches reduce per-batch overhead
-but retain more data until conversion.
+but retain more data until flushing.
 
 Configure both limits with `PdfBatchConfig`; its defaults are 32 rows and 64 MiB:
 
@@ -145,7 +145,7 @@ cargo run --locked -p pmc-io --example ingest -- /path/to/pmc-mirror metadata/
 ```
 
 The optional third argument sets concurrent article reads (default: 8). Optional
-fourth and fifth arguments override the row and memory estimate limits, for
+fourth and fifth arguments override the row and Arrow memory limits, for
 example `8 32 67108864`. Omitted limits use `PdfBatchConfig::default()`
 (32 rows and 64 MiB).
 
@@ -157,11 +157,11 @@ example `8 32 67108864`. Omitted limits use `PdfBatchConfig::default()`
   records before accepting a row that would exceed the byte limit. A single row
   that cannot fit is rejected. Call `flush()` after the last record to emit any
   remaining rows.
-- `max_memory_bytes` is a preconstruction estimate of logical Arrow buffers,
-  including PDF bytes, metadata strings, offsets, fixed-width values, and
-  validity bitmaps. It does not cap process memory or allocator capacity. Each
-  PDF is fully loaded and copied into Arrow; the original records, concurrent
-  I/O reads, and IPC output buffers require additional memory.
+- `max_memory_bytes` limits the sum of `RecordBatch::get_array_memory_size()`
+  for buffered rows. Arrow counts array structures and buffer capacities.
+  This is not a process memory or RSS limit:
+  PDFs are fully read before this check, and concurrent I/O, concatenation at
+  flush, and IPC output buffers require additional memory.
 
 I/O is async; validation and Arrow conversion are synchronous.
 

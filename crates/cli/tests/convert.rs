@@ -47,7 +47,7 @@ async fn converts_a_mirror_into_an_arrow_file() {
         ("rows", &["--batch-size", "2"][..], &[2usize, 1][..]),
         (
             "memory",
-            &["--max-rows", "32", "--max-memory-bytes", "1024"][..],
+            &["--max-rows", "32", "--max-memory-bytes", "8192"][..],
             &[1usize, 1, 1][..],
         ),
     ] {
