@@ -46,6 +46,9 @@ The record constructor takes ownership of the PDF vector. Its fields are
 immutable after validation; read them through `metadata()`, `pdf_bytes()`,
 `pdf_sha256()` and `pdf_size_bytes()`.
 
+For incremental conversion, `PdfBatchBuilder` emits full batches from appended
+records and flushes the remaining rows. See [PDF batching](docs/batching.md).
+
 Run the included example on a local PDF:
 
 ```sh
@@ -82,6 +85,12 @@ the source MD5 is not verified.
 ```sh
 cargo run --locked -p pmc-io --example pmc -- /path/to/pmc-mirror metadata/PMC123.2.json
 ```
+
+For multiple articles, `reader.read_many(paths, parallelism)` consumes a metadata
+path stream and yields records as reads complete, with bounded concurrency.
+Output order is unspecified, so a slow article does not delay completed reads.
+Articles without PDFs are skipped; the first observed error ends the stream and
+drops pending reads.
 
 ## Read through OpenDAL
 

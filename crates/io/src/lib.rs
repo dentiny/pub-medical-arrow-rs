@@ -45,6 +45,7 @@ mod discovery;
 mod error;
 mod metadata;
 mod metadata_reader;
+mod parallel_reader;
 mod pdf_reader;
 mod pmc_reader;
 mod validation;

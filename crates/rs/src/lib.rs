@@ -16,12 +16,14 @@
 //! # Ok::<(), pmc_arrow::Error>(())
 //! ```
 
+mod batch;
 mod convert;
 mod error;
 mod model;
 mod schema;
 mod validation;
 
+pub use batch::PdfBatchBuilder;
 pub use convert::to_record_batch;
 pub use error::{Error, Result};
 pub use model::{PdfMetadata, PdfRecord, Sha256Digest};
