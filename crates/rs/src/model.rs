@@ -1,9 +1,4 @@
-use sha2::{Digest, Sha256};
-
 use crate::{Error, Result};
-
-/// A SHA-256 digest stored as 32 raw bytes.
-pub type Sha256Digest = [u8; 32];
 
 /// Caller-supplied metadata for one PDF snapshot.
 ///
@@ -50,16 +45,15 @@ impl PdfMetadata {
     }
 }
 
-/// A validated, immutable PDF snapshot with a computed SHA-256 digest.
+/// A validated, immutable PDF snapshot.
 ///
-/// Fields are private to prevent bytes, length and digest from diverging after
+/// Fields are private to prevent bytes and metadata from changing after
 /// validation. Construction takes ownership of the PDF vector without copying.
 /// Arrow conversion copies the bytes into a contiguous column buffer.
 #[derive(Clone)]
 pub struct PdfRecord {
     metadata: PdfMetadata,
     pdf_bytes: Vec<u8>,
-    pdf_sha256: Sha256Digest,
 }
 
 impl std::fmt::Debug for PdfRecord {
@@ -67,13 +61,12 @@ impl std::fmt::Debug for PdfRecord {
         f.debug_struct("PdfRecord")
             .field("metadata", &self.metadata)
             .field("pdf_size_bytes", &self.pdf_size_bytes())
-            .field("pdf_sha256", &self.pdf_sha256)
             .finish_non_exhaustive()
     }
 }
 
 impl PdfRecord {
-    /// Validate inputs, canonicalize the PMCID, and hash the original PDF bytes.
+    /// Validate inputs and canonicalize the PMCID, preserving the original PDF bytes.
     ///
     /// Header validation requires `%PDF-x.y` at byte zero followed by CR or LF.
     /// It rejects obvious HTML/error responses but does not parse objects, xref,
@@ -105,11 +98,9 @@ impl PdfRecord {
         {
             return Err(Error::InvalidPdfHeader);
         }
-        let pdf_sha256 = Sha256::digest(&pdf_bytes).into();
         Ok(Self {
             metadata,
             pdf_bytes,
-            pdf_sha256,
         })
     }
 
@@ -119,10 +110,6 @@ impl PdfRecord {
 
     pub fn pdf_bytes(&self) -> &[u8] {
         &self.pdf_bytes
-    }
-
-    pub fn pdf_sha256(&self) -> &Sha256Digest {
-        &self.pdf_sha256
     }
 
     pub fn pdf_size_bytes(&self) -> u64 {

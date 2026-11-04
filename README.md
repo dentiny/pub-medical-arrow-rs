@@ -3,7 +3,7 @@
 Convert metadata and PDF files from the
 [PubMed Central (PMC) Article Datasets](https://registry.opendata.aws/ncbi-pmc/)
 into Apache Arrow `RecordBatch` values. Each row contains one PDF snapshot:
-article metadata, original PDF bytes, their SHA-256 digest, and source provenance.
+article metadata, original PDF bytes, and source provenance.
 
 PMC is an archive of full-text biomedical and life sciences articles. See the
 [dataset documentation](https://pmc-oa-opendata.s3.amazonaws.com/README.txt)
@@ -43,7 +43,7 @@ From a checkout, run the conversion example with the included synthetic PDF:
 cargo run --locked -p pmc-arrow --example convert -- PMC123 crates/rs/tests/fixtures/tiny.pdf
 ```
 
-This builds one row with 12 columns and prints a summary. No download is needed.
+This builds one row with 11 columns and prints a summary. No download is needed.
 
 Add these dependencies to your application, replacing the checkout paths:
 
@@ -70,7 +70,7 @@ let record = PdfRecord::try_new(pdf_bytes, metadata)?;
 let batch = to_record_batch(&[record])?;
 ```
 
-This validates the PDF header and metadata, computes SHA-256, and creates a
+This validates the PDF header and metadata and creates a
 one-row Arrow batch.
 
 ## Read a PMC article
@@ -137,7 +137,7 @@ Here, `8` is the number of concurrent article reads and `32` is the batch row li
 - Each PDF is fully loaded into memory and copied into Arrow buffers. Concurrency
   and batch size limit counts, not bytes; choose them to fit available memory.
 
-I/O is async; validation, hashing and Arrow conversion are synchronous.
+I/O is async; validation and Arrow conversion are synchronous.
 
 ## Arrow schema
 
@@ -154,7 +154,6 @@ empty batches. Schema metadata contains `pmc_arrow.row_kind = "pdf_snapshot"`.
 | `license` | `Utf8` | Yes | Source license label |
 | `source_uri` | `Utf8` | No | Original PDF location, including query parameters |
 | `source_last_modified` | `Timestamp(Microsecond, "UTC")` | Yes | PDF modification time: signed microseconds since the Unix epoch (1970-01-01 UTC) |
-| `pdf_sha256` | `FixedSizeBinary(32)` | No | SHA-256 of the exact PDF payload, stored as 32 raw bytes, not hex |
 | `pdf_size_bytes` | `UInt64` | No | PDF payload length in bytes |
 | `pdf_bytes` | `LargeBinary` | No | Complete, unmodified PDF payload |
 | `raw_metadata_json` | `LargeUtf8` | Yes | Verbatim source JSON object, including unknown fields and whitespace |
