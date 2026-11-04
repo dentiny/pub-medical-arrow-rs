@@ -52,9 +52,15 @@ pub enum MetadataReadError {
     NotObject { source_uri: String },
 }
 
-/// Errors while reading a PMC article and its referenced PDF.
+/// Errors while discovering or reading a PMC article and its referenced PDF.
 #[derive(Debug, thiserror::Error)]
 pub enum PmcReadError {
+    #[error("{prefix}: PMC metadata listing failed: {source}")]
+    Discovery {
+        prefix: String,
+        #[source]
+        source: opendal::Error,
+    },
     #[error(transparent)]
     Metadata(#[from] MetadataReadError),
     #[error(transparent)]

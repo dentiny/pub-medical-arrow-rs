@@ -131,6 +131,11 @@ and `pdf_url` into the PDF snapshot fields; numeric PMIDs become decimal strings
 PDF modification time can be supplied explicitly in UTC microseconds.
 See [metadata mapping and errors](docs/metadata.md).
 
+Use `discover_metadata(&operator, "metadata/").await` to stream metadata JSON
+paths directly into `reader.read_many(paths, parallelism)`, then append records
+to `PdfBatchBuilder`. The `ingest` example connects these stages and flushes the
+last partial batch. See [metadata discovery](docs/discovery.md).
+
 ## Conversion contract
 
 - [Schema and validation details](docs/schema.md).
@@ -148,7 +153,7 @@ See [metadata mapping and errors](docs/metadata.md).
 - PDF bytes are copied into the Arrow column once. Caller-owned records remain
   allocated until dropped. Limit both rows and bytes before calling the converter;
   the core library does not impose a batch budget or catch allocation exhaustion.
-- Source discovery, batch scheduling, built-in retries, Lance blob policies, XML
+- Inventory parsing, built-in retries, Lance blob policies, XML
   parsing, OCR and text extraction are outside the current implementation.
   Configure retries/timeouts through OpenDAL layers when needed.
 
