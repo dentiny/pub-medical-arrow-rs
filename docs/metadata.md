@@ -54,8 +54,9 @@ use `None` if the PDF modification time is unknown.
 
 A `pdf_url` is provenance, not an OpenDAL-relative key: it can include a bucket,
 URL escaping and an MD5 query parameter. This reader neither resolves it to an
-operator/path nor verifies that MD5. Callers currently supply the matching PDF
-path explicitly; automatic association belongs to the dataset reader.
+operator/path nor verifies that MD5. Use `PmcReader` for combined metadata/PDF
+reads from the PMC bucket or a matching mirror, or supply a PDF path explicitly
+to the lower-level reader. `PmcReader` resolves the URL but does not verify MD5.
 
 ## Errors
 

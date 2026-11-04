@@ -1,4 +1,24 @@
-# Async PDF and metadata ingestion
+# Async PMC ingestion
+
+`PmcReader::new(operator).read(metadata_path, retrieved_at).await` reads a
+metadata object, resolves its source PDF URL and returns `Option<PdfRecord>`.
+The reader can be reused for multiple articles. Construction performs no I/O.
+
+The operator root represents the root of `pmc-oa-opendata`, or a mirror preserving
+its object paths. Metadata paths are operator-relative. Source PDF URLs must use
+`s3://pmc-oa-opendata/`; the reader removes query/fragment components and decodes
+percent escapes once to obtain the object path. Original URLs remain in records.
+Other buckets/schemes and paths that could be changed by OpenDAL or filesystem
+normalization are rejected, rather than reading a different local object.
+
+Missing or null `pdf_url` returns `Ok(None)`. `PmcReadError` wraps the existing
+metadata and PDF errors, or reports an unusable source URL. A missing referenced
+PDF is an error. `retrieved_at` is caller-supplied UTC microseconds; the PDF's
+`source_last_modified` remains `None`. Source MD5 query values are not verified.
+
+The async `pmc` example reads from a local mirror and builds an Arrow batch.
+
+## Separate reads
 
 `pmc-io` reads a single PDF into a validated `pmc_arrow::PdfRecord`:
 

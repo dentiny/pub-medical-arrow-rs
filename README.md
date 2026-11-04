@@ -10,7 +10,7 @@ dataset storage.
 | Directory | Crate | Status |
 | --- | --- | --- |
 | `crates/rs` | `pmc-arrow` | Implemented: model, validation, schema and in-memory Arrow conversion |
-| `crates/io` | `pmc-io` | Implemented: async PDF and PMC metadata reads via OpenDAL or byte streams |
+| `crates/io` | `pmc-io` | Implemented: combined PMC article reads, plus separate PDF and metadata readers |
 | `crates/cli` | `pmc-cli` | Placeholder; exits with an explicit not-implemented error |
 
 Dependency declarations match the local `atif-arrow` workspace: Arrow `58` and
@@ -66,6 +66,28 @@ cargo run --locked -p pmc-arrow --example convert -- PMC123 crates/rs/tests/fixt
 The example uses Tokio for asynchronous file reads, path canonicalization and
 stdout writes, then builds an in-memory batch. It does not write a dataset.
 Tokio is a development dependency of `pmc-arrow` for the example.
+
+## Read a PMC article
+
+Configure an OpenDAL operator whose root corresponds to the root of the
+`pmc-oa-opendata` bucket, or a local mirror retaining its object paths:
+
+```rust
+let reader = pmc_io::PmcReader::new(operator);
+if let Some(record) = reader.read("metadata/PMC123.2.json", retrieved_at).await? {
+    let batch = pmc_arrow::to_record_batch(&[record])?;
+}
+```
+
+The reader fetches metadata, resolves its `pdf_url`, then reads that PDF.
+Missing PDF URLs return `None`. `retrieved_at` is caller-supplied UTC microseconds;
+PDF modification time remains unknown. The original source URL, including its
+checksum query, is preserved. The query is excluded from the object path;
+the source MD5 is not verified.
+
+```sh
+cargo run --locked -p pmc-io --example pmc -- /path/to/pmc-mirror metadata/PMC123.2.json
+```
 
 ## Read through OpenDAL
 
