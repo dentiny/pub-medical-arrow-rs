@@ -27,5 +27,4 @@ async fn reads_pdf_referenced_by_metadata() {
         record.metadata().raw_metadata_json.as_deref(),
         Some(json.as_str())
     );
-    assert_eq!(record.metadata().source_last_modified, None);
 }

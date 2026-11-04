@@ -2,8 +2,7 @@ use std::sync::Arc;
 
 use arrow_array::builder::LargeBinaryBuilder;
 use arrow_array::{
-    ArrayRef, LargeBinaryArray, LargeStringArray, RecordBatch, StringArray,
-    TimestampMicrosecondArray, UInt32Array, UInt64Array,
+    ArrayRef, LargeBinaryArray, LargeStringArray, RecordBatch, StringArray, UInt32Array,
 };
 use arrow_buffer::{Buffer, OffsetBuffer};
 
@@ -26,11 +25,7 @@ pub fn to_record_batch(records: &[PdfRecord]) -> Result<RecordBatch> {
         pdf.append_value(record.pdf_bytes());
     }
 
-    make_batch(
-        records.iter().map(PdfRecord::metadata),
-        UInt64Array::from_iter_values(records.iter().map(PdfRecord::pdf_size_bytes)),
-        pdf.finish(),
-    )
+    make_batch(records.iter().map(PdfRecord::metadata), pdf.finish())
 }
 
 /// Move the PDF allocation into Arrow, leaving concatenation as its only copy.
@@ -43,16 +38,11 @@ pub(crate) fn into_record_batch(record: PdfRecord) -> Result<RecordBatch> {
         Buffer::from_vec(bytes),
         None,
     );
-    make_batch(
-        std::iter::once(&metadata),
-        UInt64Array::from(vec![length as u64]),
-        pdf,
-    )
+    make_batch(std::iter::once(&metadata), pdf)
 }
 
 fn make_batch<'a>(
     metadata: impl Iterator<Item = &'a PdfMetadata> + Clone,
-    pdf_sizes: UInt64Array,
     pdf: LargeBinaryArray,
 ) -> Result<RecordBatch> {
     let columns: Vec<ArrayRef> = vec![
@@ -77,11 +67,6 @@ fn make_batch<'a>(
         Arc::new(StringArray::from_iter_values(
             metadata.clone().map(|m| m.source_uri.as_str()),
         )),
-        Arc::new(
-            TimestampMicrosecondArray::from_iter(metadata.clone().map(|m| m.source_last_modified))
-                .with_timezone("UTC"),
-        ),
-        Arc::new(pdf_sizes),
         Arc::new(pdf),
         Arc::new(LargeStringArray::from_iter(
             metadata.map(|m| m.raw_metadata_json.as_deref()),

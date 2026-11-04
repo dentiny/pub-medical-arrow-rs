@@ -21,12 +21,11 @@ impl PmcReader {
     /// Read one metadata object and the PDF named by its `pdf_url`.
     ///
     /// `metadata_path` is relative to the operator root.
-    /// PDF modification time remains unknown; no stat request is made.
     /// Missing or null `pdf_url` returns `Ok(None)` without a PDF read.
     /// The full PDF is materialized in memory, with no configured size limit.
     pub async fn read(&self, metadata_path: &str) -> Result<Option<PdfRecord>, PmcReadError> {
         let article = read_metadata(&self.operator, metadata_path).await?;
-        let Some(metadata) = article.into_pdf_metadata(None)? else {
+        let Some(metadata) = article.into_pdf_metadata()? else {
             return Ok(None);
         };
         let path = validate_pdf_path(&metadata.source_uri)?;
