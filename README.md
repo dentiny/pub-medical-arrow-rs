@@ -141,11 +141,12 @@ The [ingest example](crates/io/examples/ingest.rs) shows the complete flow,
 including flushing the final partial batch:
 
 ```sh
-cargo run --locked -p pmc-io --example ingest -- /path/to/pmc-mirror metadata/ 8 32 67108864
+cargo run --locked -p pmc-io --example ingest -- /path/to/pmc-mirror metadata/ 8
 ```
 
-Here, `8` is the number of concurrent article reads, `32` is the batch row limit,
-and `67108864` is the batch memory estimate limit in bytes.
+Here, `8` is the number of concurrent article reads. Optional fourth and fifth
+arguments override the row and memory estimate limits, for example `8 32 67108864`.
+Omitted limits use `PdfBatchConfig::default()` (32 rows and 64 MiB).
 
 - Discovery streams `.json` paths under `metadata/` without loading all paths.
 - `read_many` uses `buffer_unordered`: records arrive as reads complete, with no
