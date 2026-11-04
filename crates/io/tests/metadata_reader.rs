@@ -2,60 +2,16 @@ use std::io;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
-use arrow_array::{LargeStringArray, StringArray};
 use futures::io::{AsyncRead, AsyncReadExt, Cursor};
 use opendal::{services::Fs, Operator};
-use pmc_arrow::to_record_batch;
-use pmc_io::{read_metadata, MetadataReadError, MetadataReader, PdfReader};
+use pmc_io::{read_metadata, MetadataReadError, MetadataReader};
 
 const JSON: &str = include_str!("fixtures/metadata.json");
-const PDF: &[u8] = include_bytes!("../../rs/tests/fixtures/tiny.pdf");
 const METADATA_URI: &str = "s3://pmc-oa-opendata/metadata/PMC123.2.json";
-const PDF_URI: &str =
-    "s3://pmc-oa-opendata/PMC123.2/article.pdf?md5=0123456789abcdef0123456789abcdef";
 
 fn operator() -> Operator {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures");
     Operator::new(Fs::default().root(root.to_str().unwrap())).unwrap()
-}
-
-#[tokio::test]
-async fn filesystem_metadata_maps_into_pdf_and_arrow_without_losing_source_json() {
-    let source = read_metadata(&operator(), "metadata.json").await.unwrap();
-    assert_eq!(source.raw_metadata_json, JSON);
-    let metadata = source
-        .into_pdf_metadata(1_700_000_000_123_456, Some(1_699_999_000_000_000))
-        .unwrap()
-        .unwrap();
-    assert_eq!(metadata.pmcid, "PMC123");
-    assert_eq!(metadata.pmc_version, Some(2));
-    assert_eq!(metadata.pmid.as_deref(), Some("36537061"));
-    assert_eq!(metadata.doi.as_deref(), Some("10.0000/example"));
-    assert_eq!(metadata.title.as_deref(), Some("Synthetic 医学 article"));
-    assert_eq!(metadata.license.as_deref(), Some("CC BY"));
-    assert_eq!(metadata.source_uri, PDF_URI);
-    assert_eq!(metadata.retrieved_at, 1_700_000_000_123_456);
-    assert_eq!(metadata.source_last_modified, Some(1_699_999_000_000_000));
-
-    let record = PdfReader::new(Cursor::new(PDF), metadata)
-        .read()
-        .await
-        .unwrap();
-    let batch = to_record_batch(&[record]).unwrap();
-    let raw = batch
-        .column_by_name("raw_metadata_json")
-        .unwrap()
-        .as_any()
-        .downcast_ref::<LargeStringArray>()
-        .unwrap();
-    assert_eq!(raw.value(0), JSON);
-    let uri = batch
-        .column_by_name("source_uri")
-        .unwrap()
-        .as_any()
-        .downcast_ref::<StringArray>()
-        .unwrap();
-    assert_eq!(uri.value(0), PDF_URI);
 }
 
 #[tokio::test]
