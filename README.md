@@ -28,94 +28,62 @@ cargo run --locked -p pmc-arrow --example convert -- PMC123 crates/rs/tests/fixt
 
 This builds one row with 12 columns and prints a summary. No download is needed.
 
-For the library examples below, add these dependencies to your application's
-`Cargo.toml`, replacing the checkout paths:
+Add these dependencies to your application, replacing the checkout paths:
 
 ```toml
 [dependencies]
 pmc-arrow = { path = "/path/to/pub-medical-arrow-rs/crates/rs" }
 pmc-io = { path = "/path/to/pub-medical-arrow-rs/crates/io" }
-arrow-array = "58"
-futures = { version = "0.3", default-features = false, features = ["std", "async-await"] }
 opendal = { version = "0.59.3", default-features = false, features = ["services-fs", "executors-tokio", "http-transport-reqwest"] }
-tokio = { version = "1", features = ["macros", "rt", "fs", "io-std", "io-util"] }
+tokio = { version = "1", features = ["macros", "rt"] }
 ```
 
-If you already have PDF bytes, only `pmc-arrow` and `arrow-array` are needed for
-the first example. Backend features, credentials, retries and timeouts are
-configured by your application through OpenDAL. The workspace uses Arrow 58
-and OpenDAL 0.59; its lockfile pins them to 58.4.0 and 0.59.4 respectively.
+For in-memory conversion alone, only `pmc-arrow` is needed. Enable the OpenDAL
+backend you use (`services-fs` here). The workspace uses Arrow 58 and OpenDAL 0.59.
 
 ## Convert PDF bytes
 
+Given PDF bytes in a `Vec<u8>`, inside a function returning `Result`:
+
 ```rust
-use arrow_array::RecordBatch;
 use pmc_arrow::{to_record_batch, PdfMetadata, PdfRecord};
 
-fn convert(pdf: Vec<u8>) -> pmc_arrow::Result<RecordBatch> {
-    let mut metadata = PdfMetadata::new("PMC123", "file:///data/PMC123.pdf");
-    metadata.title = Some("Example article".into());
-    metadata.pmc_version = Some(2);
-
-    let record = PdfRecord::try_new(pdf, metadata)?;
-    to_record_batch(&[record])
-}
+let metadata = PdfMetadata::new("PMC123", "file:///data/PMC123.pdf");
+let record = PdfRecord::try_new(pdf_bytes, metadata)?;
+let batch = to_record_batch(&[record])?;
 ```
 
-`PdfRecord::try_new` takes ownership of the bytes, validates the metadata and
-PDF header, and computes SHA-256. Its fields are immutable; use `metadata()`,
-`pdf_bytes()`, `pdf_sha256()` and `pdf_size_bytes()` to inspect them.
-`to_record_batch` preserves input order and duplicates. Empty input produces
-an empty batch with the same schema.
+This validates the PDF header and metadata, computes SHA-256, and creates a
+one-row Arrow batch.
 
 ## Read a PMC article
 
-`PmcReader` accepts an OpenDAL `Operator` rooted at the `pmc-oa-opendata` bucket,
-or at a local mirror preserving its object paths. Metadata paths are relative
-to that root. The source format is described in the
-[official PMC dataset README](https://pmc-oa-opendata.s3.amazonaws.com/README.txt).
+Point an OpenDAL operator at a local mirror of the PMC bucket:
 
 ```rust
-use arrow_array::RecordBatch;
-use opendal::Operator;
+use opendal::{services::Fs, Operator};
 use pmc_arrow::to_record_batch;
 use pmc_io::PmcReader;
 
-async fn read_article(
-    operator: Operator,
-    metadata_path: &str,
-) -> Result<Option<RecordBatch>, Box<dyn std::error::Error>> {
+#[tokio::main(flavor = "current_thread")]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let operator = Operator::new(Fs::default().root("/path/to/pmc-mirror"))?;
     let reader = PmcReader::new(operator);
-    match reader.read(metadata_path).await? {
-        Some(record) => Ok(Some(to_record_batch(&[record])?)),
-        None => Ok(None), // The article has no PDF URL.
+
+    if let Some(record) = reader.read("metadata/PMC123.2.json").await? {
+        let batch = to_record_batch(&[record])?;
+        assert_eq!(batch.num_rows(), 1);
     }
+    Ok(())
 }
 ```
 
-The reader fetches the JSON, resolves its `pdf_url`, then reads that PDF.
-Missing or null `pdf_url` returns `None`; a referenced PDF that cannot be read
-returns an error. PDF URLs must start with `s3://pmc-oa-opendata/`. Query and
-fragment components are removed and percent escapes decoded for the object
-path; the original URL is preserved in `source_uri`. The source MD5 query
-parameter is not verified. `source_last_modified` stays null because the reader
-does not fetch the PDF's modification time.
+The reader loads metadata and its referenced PDF. An article without a PDF URL
+returns `None`. The mirror must preserve bucket paths: for example,
+`metadata/PMC123.2.json` and `PMC123.2/article.pdf`, where the JSON's `pdf_url`
+is `s3://pmc-oa-opendata/PMC123.2/article.pdf`.
 
-For example, a local mirror could contain:
-
-```text
-pmc-mirror/
-├── metadata/PMC123.2.json
-└── PMC123.2/article.pdf
-```
-
-The JSON's `pdf_url` would be
-`s3://pmc-oa-opendata/PMC123.2/article.pdf`. Point the operator at `pmc-mirror/`,
-not its `metadata/` directory. To try the included single-article example:
-
-```sh
-cargo run --locked -p pmc-io --example pmc -- /path/to/pmc-mirror metadata/PMC123.2.json
-```
+See the runnable [single-article example](crates/io/examples/pmc.rs).
 
 For the [public S3 bucket](https://registry.opendata.aws/ncbi-pmc/), add
 `"services-s3"` to the OpenDAL features above and construct the operator inside
@@ -133,84 +101,26 @@ let operator = opendal::Operator::new(
 
 ## Discover, read concurrently, and batch
 
-The following complete program reads a local mirror. Save it as `src/main.rs`
-and run `cargo run -- /path/to/pmc-mirror metadata/` in your application:
-
-```rust
-use arrow_array::RecordBatch;
-use futures::{pin_mut, TryStreamExt};
-use opendal::{services::Fs, Operator};
-use pmc_arrow::PdfBatchBuilder;
-use pmc_io::{discover_metadata, PmcReader};
-use tokio::io::AsyncWriteExt;
-
-#[tokio::main(flavor = "current_thread")]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let mut args = std::env::args().skip(1);
-    let root = args.next().ok_or("expected mirror root")?;
-    let prefix = args.next().ok_or("expected metadata prefix")?;
-    let root = tokio::fs::canonicalize(root).await?;
-    let operator =
-        Operator::new(Fs::default().root(root.to_str().ok_or("invalid mirror directory")?))?;
-
-    let paths = discover_metadata(&operator, &prefix).await?;
-    let reader = PmcReader::new(operator);
-    let records = reader.read_many(paths, 8); // Up to 8 article reads in flight.
-    pin_mut!(records);
-    let mut builder = PdfBatchBuilder::new(32)?; // Up to 32 rows per batch.
-
-    while let Some(record) = records.try_next().await? {
-        if let Some(batch) = builder.append(record)? {
-            consume(batch).await?;
-        }
-    }
-    // Emit the final partial batch, if any.
-    if let Some(batch) = builder.flush()? {
-        consume(batch).await?;
-    }
-    Ok(())
-}
-
-async fn consume(batch: RecordBatch) -> std::io::Result<()> {
-    // Replace this summary with your application's async dataset writer.
-    let summary = format!(
-        "batch: {} rows, {} columns\n",
-        batch.num_rows(),
-        batch.num_columns()
-    );
-    let mut stdout = tokio::io::stdout();
-    stdout.write_all(summary.as_bytes()).await?;
-    stdout.flush().await
-}
-```
-
-The same flow is available in the repository with configurable concurrency and
-batch size:
+Use `discover_metadata` → `PmcReader::read_many` → `PdfBatchBuilder` to process
+multiple articles. The [ingest example](crates/io/examples/ingest.rs) shows the
+complete flow, including flushing the final partial batch:
 
 ```sh
 cargo run --locked -p pmc-io --example ingest -- /path/to/pmc-mirror metadata/ 8 32
 ```
 
-- **Discovery** recursively lists `.json` files under the prefix, streaming paths
-  without reading their contents. The operator must support listing. Use
-  `metadata/` to avoid discovering the duplicate JSON copies in article folders.
-  If you already have paths, pass a stream such as
-  `futures::stream::iter(paths.into_iter().map(Ok))` to `read_many` instead.
-- **Concurrent reads** use `buffer_unordered`: records arrive as reads complete,
-  with no input-order guarantee. A parallelism of zero is treated as one.
-  Articles without PDFs are skipped. The first observed error ends the stream
-  and drops pending reads; previously returned batches remain with the caller.
-- **Batching** preserves the order in which records arrive and retains duplicates.
-  `PdfBatchBuilder::new` requires a positive row count. `append` emits full batches;
-  `flush` emits any remainder, or returns `None` when empty.
-- **Memory** depends on PDF sizes as well as concurrency and batch size. Each PDF
-  is fully materialized, with no size limit. Arrow conversion copies payloads
-  into column buffers while the input records still exist. Consume each batch
-  before requesting more; row and concurrency limits are not byte limits.
+Here, `8` is the number of concurrent article reads and `32` is the batch row limit.
 
-File, network and stream I/O is async. Validation, hashing and Arrow conversion
-are synchronous. The library does not choose article versions, filter licenses
-or deduplicate records.
+- Discovery streams `.json` paths under `metadata/` without loading all paths.
+- `read_many` uses `buffer_unordered`: records arrive as reads complete, with no
+  input-order guarantee. Articles without PDFs are skipped; the first observed
+  error ends the stream and drops pending reads.
+- `PdfBatchBuilder` retains arrival order and duplicates. Call `flush()` after
+  the last record to emit any remaining rows.
+- Each PDF is fully loaded into memory and copied into Arrow buffers. Concurrency
+  and batch size limit counts, not bytes; choose them to fit available memory.
+
+I/O is async; validation, hashing and Arrow conversion are synchronous.
 
 ## Arrow schema
 
