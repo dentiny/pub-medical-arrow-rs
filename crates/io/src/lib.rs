@@ -4,8 +4,8 @@
 //! For separate reads, use [`read_pdf`] with a caller-configured operator, or
 //! [`PdfReader`] with an existing futures `AsyncRead` stream. Read source JSON
 //! using [`read_metadata`] or [`MetadataReader`], then map it with
-//! [`PmcMetadata::into_pdf_metadata`]. No discovery, clock reads or dataset
-//! writes are performed here.
+//! [`PmcMetadata::into_pdf_metadata`]. Use [`discover_metadata`] to stream JSON
+//! paths under a metadata prefix. No clock reads or dataset writes are performed.
 //!
 //! ```no_run
 //! use pmc_arrow::{to_record_batch, PdfMetadata};
@@ -41,6 +41,7 @@
 //! }
 //! ```
 
+mod discovery;
 mod error;
 mod metadata;
 mod metadata_reader;
@@ -48,6 +49,7 @@ mod pdf_reader;
 mod pmc_reader;
 mod validation;
 
+pub use discovery::discover_metadata;
 pub use error::{MetadataReadError, PmcReadError, ReadError};
 pub use metadata::PmcMetadata;
 pub use metadata_reader::{read_metadata, MetadataReader};
