@@ -27,8 +27,11 @@ pmc-arrow /path/to/pmc-mirror output.arrow
 pmc-arrow s3://pmc-oa-opendata article.arrow --prefix PMC10009416.1/
 ```
 
-`--prefix` defaults to `metadata/`. Use `--parallelism 8` and `--batch-size 32`
-to control concurrent reads and rows per batch (these are the defaults).
+`--prefix` defaults to `metadata/`. Use `--parallelism 8`, `--max-rows 32`, and
+`--max-memory-bytes 67108864` to control concurrent reads, rows per batch, and
+estimated Arrow buffer bytes per batch (these are the defaults; 67108864 bytes
+is 64 MiB). `--batch-size` remains an alias for `--max-rows`. All limits must be
+positive. A single row exceeding the memory estimate limit is rejected.
 Records arrive in completion order; articles without PDFs are skipped.
 The output is an Arrow IPC **file**, including a final partial batch. No PDFs
 produces a valid empty file with the PMC schema. Existing output files are
@@ -119,23 +122,44 @@ let operator = opendal::Operator::new(
 ## Discover, read concurrently, and batch
 
 Use `discover_metadata` → `PmcReader::read_many` → `PdfBatchBuilder` to process
-multiple articles. The [ingest example](crates/io/examples/ingest.rs) shows the
-complete flow, including flushing the final partial batch:
+multiple articles. Batching groups PDF rows into columnar buffers so IPC can
+encode and write several rows together. Larger batches reduce per-batch overhead
+but retain more data until conversion.
 
-```sh
-cargo run --locked -p pmc-io --example ingest -- /path/to/pmc-mirror metadata/ 8 32
+Configure both limits with `PdfBatchConfig`; its defaults are 32 rows and 64 MiB:
+
+```rust
+use pmc_arrow::{PdfBatchBuilder, PdfBatchConfig};
+
+let mut builder = PdfBatchBuilder::new(PdfBatchConfig {
+    max_rows: 32,
+    max_memory_bytes: 64 * 1024 * 1024,
+})?;
 ```
 
-Here, `8` is the number of concurrent article reads and `32` is the batch row limit.
+The [ingest example](crates/io/examples/ingest.rs) shows the complete flow,
+including flushing the final partial batch:
+
+```sh
+cargo run --locked -p pmc-io --example ingest -- /path/to/pmc-mirror metadata/ 8 32 67108864
+```
+
+Here, `8` is the number of concurrent article reads, `32` is the batch row limit,
+and `67108864` is the batch memory estimate limit in bytes.
 
 - Discovery streams `.json` paths under `metadata/` without loading all paths.
 - `read_many` uses `buffer_unordered`: records arrive as reads complete, with no
   input-order guarantee. Articles without PDFs are skipped; the first observed
   error ends the stream and drops pending reads.
-- `PdfBatchBuilder` retains arrival order and duplicates. Call `flush()` after
-  the last record to emit any remaining rows.
-- Each PDF is fully loaded into memory and copied into Arrow buffers. Concurrency
-  and batch size limit counts, not bytes; choose them to fit available memory.
+- `PdfBatchBuilder` retains arrival order and duplicates. It flushes the current
+  records before accepting a row that would exceed the byte limit. A single row
+  that cannot fit is rejected. Call `flush()` after the last record to emit any
+  remaining rows.
+- `max_memory_bytes` is a preconstruction estimate of logical Arrow buffers,
+  including PDF bytes, metadata strings, offsets, fixed-width values, and
+  validity bitmaps. It does not cap process memory or allocator capacity. Each
+  PDF is fully loaded and copied into Arrow; the original records, concurrent
+  I/O reads, and IPC output buffers require additional memory.
 
 I/O is async; validation and Arrow conversion are synchronous.
 

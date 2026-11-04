@@ -23,7 +23,11 @@ pub struct Args {
     #[arg(long, default_value = "8")]
     pub parallelism: NonZeroUsize,
 
-    /// Maximum rows per Arrow batch, not a byte limit
-    #[arg(long, default_value = "32")]
-    pub batch_size: NonZeroUsize,
+    /// Maximum rows per Arrow batch
+    #[arg(long, visible_alias = "batch-size", default_value = "32")]
+    pub max_rows: NonZeroUsize,
+
+    /// Maximum estimated Arrow buffer bytes per batch (not process memory)
+    #[arg(long, default_value = "67108864")]
+    pub max_memory_bytes: NonZeroUsize,
 }

@@ -1,19 +1,25 @@
 //! Discover metadata, read articles concurrently, and build Arrow batches.
-//! Usage: cargo run -p pmc-io --example ingest -- <MIRROR_ROOT> <PREFIX> <PARALLELISM> <BATCH_SIZE>
+//! Usage: cargo run -p pmc-io --example ingest -- <MIRROR_ROOT> <PREFIX> <PARALLELISM> <MAX_ROWS> <MAX_MEMORY_BYTES>
 use futures::{pin_mut, TryStreamExt};
 use opendal::{services::Fs, Operator};
-use pmc_arrow::PdfBatchBuilder;
+use pmc_arrow::{PdfBatchBuilder, PdfBatchConfig};
 use pmc_io::{discover_metadata, PmcReader};
 use tokio::io::AsyncWriteExt;
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<_> = std::env::args().skip(1).collect();
-    if args.len() != 4 {
-        return Err("usage: ingest <MIRROR_ROOT> <PREFIX> <PARALLELISM> <BATCH_SIZE>".into());
+    if args.len() != 5 {
+        return Err(
+            "usage: ingest <MIRROR_ROOT> <PREFIX> <PARALLELISM> <MAX_ROWS> <MAX_MEMORY_BYTES>"
+                .into(),
+        );
     }
     let parallelism = args[2].parse()?;
-    let mut builder = PdfBatchBuilder::new(args[3].parse()?)?;
+    let mut builder = PdfBatchBuilder::new(PdfBatchConfig {
+        max_rows: args[3].parse()?,
+        max_memory_bytes: args[4].parse()?,
+    })?;
     let root = tokio::fs::canonicalize(&args[0]).await?;
     let operator =
         Operator::new(Fs::default().root(root.to_str().ok_or("invalid mirror directory")?))?;
