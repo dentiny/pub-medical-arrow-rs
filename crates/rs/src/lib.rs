@@ -12,7 +12,7 @@
 //! let record = PdfRecord::try_new(b"%PDF-1.7\nexample".to_vec(), metadata)?;
 //! let batch = to_record_batch(&[record])?;
 //! assert_eq!(batch.num_rows(), 1);
-//! assert_eq!(batch.num_columns(), 12);
+//! assert_eq!(batch.num_columns(), 11);
 //! # Ok::<(), pmc_arrow::Error>(())
 //! ```
 
@@ -26,5 +26,5 @@ mod validation;
 pub use batch::PdfBatchBuilder;
 pub use convert::to_record_batch;
 pub use error::{Error, Result};
-pub use model::{PdfMetadata, PdfRecord, Sha256Digest};
+pub use model::{PdfMetadata, PdfRecord};
 pub use schema::schema;

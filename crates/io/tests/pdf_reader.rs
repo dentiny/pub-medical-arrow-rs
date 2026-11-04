@@ -36,15 +36,6 @@ async fn filesystem_pdf_preserves_bytes_and_metadata_through_arrow_conversion() 
         record.metadata().raw_metadata_json,
         metadata().raw_metadata_json
     );
-    let digest: String = record
-        .pdf_sha256()
-        .iter()
-        .map(|b| format!("{b:02x}"))
-        .collect();
-    assert_eq!(
-        digest,
-        include_str!("../../rs/tests/fixtures/tiny.sha256").trim()
-    );
     let batch = to_record_batch(&[record]).unwrap();
     let bytes = batch
         .column_by_name("pdf_bytes")

@@ -52,9 +52,6 @@ pub(crate) fn validate_batch_capacity(records: &[PdfRecord]) -> Result<usize> {
         )?;
     }
     checked_total([records.len(), 1], (isize::MAX as u64) / 8, "row offsets")?;
-    if records.len() > (isize::MAX as usize) / 32 {
-        return Err(Error::BatchTooLarge("pdf_sha256"));
-    }
     Ok(pdf_capacity)
 }
 

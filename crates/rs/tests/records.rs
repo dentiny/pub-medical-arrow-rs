@@ -1,6 +1,6 @@
 use arrow_array::{
-    Array, FixedSizeBinaryArray, LargeBinaryArray, LargeStringArray, RecordBatch, StringArray,
-    TimestampMicrosecondArray, UInt32Array, UInt64Array,
+    Array, LargeBinaryArray, LargeStringArray, RecordBatch, StringArray, TimestampMicrosecondArray,
+    UInt32Array, UInt64Array,
 };
 use pmc_arrow::{schema, to_record_batch, Error, PdfMetadata, PdfRecord};
 
@@ -29,7 +29,7 @@ fn empty_batch_retains_schema() {
     let batch = to_record_batch(&[]).unwrap();
     assert_eq!(batch.schema(), schema());
     assert_eq!(batch.num_rows(), 0);
-    assert_eq!(batch.num_columns(), 12);
+    assert_eq!(batch.num_columns(), 11);
 }
 
 #[test]
@@ -99,25 +99,6 @@ fn preserves_all_values_nulls_binary_and_microseconds() {
             }
         }
     }
-    assert_eq!(
-        column::<FixedSizeBinaryArray>(&batch, "pdf_sha256").value(0),
-        record().pdf_sha256()
-    );
-}
-
-#[test]
-fn digest_matches_independent_fixture_checksum() {
-    // Generated independently with Python hashlib, stored alongside the fixture.
-    let expected = include_str!("fixtures/tiny.sha256").trim();
-    let record = record();
-    let actual: String = record
-        .pdf_sha256()
-        .iter()
-        .map(|b| format!("{b:02x}"))
-        .collect();
-    assert_eq!(actual, expected);
-    assert_eq!(record.pdf_size_bytes(), PDF.len() as u64);
-    assert_eq!(record.pdf_bytes(), PDF);
 }
 
 #[test]
@@ -252,11 +233,11 @@ fn preserves_order_duplicates_and_content_revisions() {
     let mut updated_pdf = PDF.to_vec();
     updated_pdf.extend_from_slice(b"\n% subsequent revision\n");
     let updated = PdfRecord::try_new(updated_pdf, metadata()).unwrap();
-    assert_ne!(first.pdf_sha256(), updated.pdf_sha256());
+    assert_ne!(first.pdf_bytes(), updated.pdf_bytes());
     let mut other_metadata = metadata();
     other_metadata.pmcid = "PMC456".into();
     let other = PdfRecord::try_new(PDF.to_vec(), other_metadata).unwrap();
-    assert_eq!(first.pdf_sha256(), other.pdf_sha256());
+    assert_eq!(first.pdf_bytes(), other.pdf_bytes());
     let batch = to_record_batch(&[updated.clone(), other, first.clone(), first]).unwrap();
     assert_eq!(batch.num_rows(), 4);
     assert_eq!(

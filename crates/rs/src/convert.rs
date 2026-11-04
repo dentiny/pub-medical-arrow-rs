@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use arrow_array::builder::{FixedSizeBinaryBuilder, LargeBinaryBuilder};
+use arrow_array::builder::LargeBinaryBuilder;
 use arrow_array::{
     ArrayRef, LargeStringArray, RecordBatch, StringArray, TimestampMicrosecondArray, UInt32Array,
     UInt64Array,
@@ -21,10 +21,8 @@ pub fn to_record_batch(records: &[PdfRecord]) -> Result<RecordBatch> {
     let pdf_capacity = validate_batch_capacity(records)?;
 
     let mut pdf = LargeBinaryBuilder::with_capacity(records.len(), pdf_capacity);
-    let mut hashes = FixedSizeBinaryBuilder::with_capacity(records.len(), 32);
     for record in records {
         pdf.append_value(record.pdf_bytes());
-        hashes.append_value(record.pdf_sha256())?;
     }
 
     let columns: Vec<ArrayRef> = vec![
@@ -55,7 +53,6 @@ pub fn to_record_batch(records: &[PdfRecord]) -> Result<RecordBatch> {
             )
             .with_timezone("UTC"),
         ),
-        Arc::new(hashes.finish()),
         Arc::new(UInt64Array::from_iter_values(
             records.iter().map(PdfRecord::pdf_size_bytes),
         )),

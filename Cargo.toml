@@ -18,7 +18,6 @@ opendal = { version = "0.59.3", default-features = false, features = [
     "executors-tokio",
     "http-transport-reqwest",
 ] }
-sha2 = "0.10"
 percent-encoding = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["raw_value"] }

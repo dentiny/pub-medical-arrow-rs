@@ -1,1 +1,1 @@
-Synthetic one-page PDF created for this project under its MIT license. Contains a non-UTF-8 binary comment, a text stream, and a cross-reference table. tiny.sha256 was computed independently with Python hashlib.sha256. No downloaded article content is included.
+Synthetic one-page PDF created for this project under its MIT license. Contains a non-UTF-8 binary comment, a text stream, and a cross-reference table. No downloaded article content is included.
