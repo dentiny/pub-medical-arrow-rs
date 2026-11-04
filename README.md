@@ -171,13 +171,4 @@ JSON even for articles without PDFs. Call
 pass `None` if the PDF modification time is unknown, or UTC microseconds if known.
 XML, text and media links remain in raw JSON but their contents are not fetched.
 
-## Development
-
-```sh
-cargo fmt --all -- --check
-cargo test --locked --workspace
-cargo test --locked --workspace --all-targets
-cargo clippy --locked --workspace --all-targets -- -D warnings
-```
-
 The code and synthetic PDF fixture are distributed under the [MIT license](LICENSE).
