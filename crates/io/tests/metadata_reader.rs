@@ -4,6 +4,7 @@ use std::task::{Context, Poll};
 
 use futures::io::{AsyncRead, AsyncReadExt, Cursor};
 use opendal::{services::Fs, Operator};
+use pmc_arrow::PdfMetadata;
 use pmc_io::{read_metadata, MetadataReadError, MetadataReader};
 
 const JSON: &str = include_str!("fixtures/metadata.json");
@@ -12,6 +13,57 @@ const METADATA_URI: &str = "s3://pmc-oa-opendata/metadata/PMC123.2.json";
 fn operator() -> Operator {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures");
     Operator::new(Fs::default().root(root.to_str().unwrap())).unwrap()
+}
+
+#[tokio::test]
+async fn filesystem_and_stream_map_every_pdf_metadata_field() {
+    let sources = [
+        read_metadata(&operator(), "metadata.json").await.unwrap(),
+        MetadataReader::new(Cursor::new(JSON), METADATA_URI)
+            .read()
+            .await
+            .unwrap(),
+    ];
+    for source in sources {
+        assert_eq!(source.raw_metadata_json, JSON);
+        let metadata = source.into_pdf_metadata(Some(-1)).unwrap().unwrap();
+        assert_eq!(
+            metadata,
+            PdfMetadata {
+                pmcid: "PMC123".into(),
+                pmc_version: Some(2),
+                pmid: Some("36537061".into()),
+                doi: Some("10.0000/example".into()),
+                title: Some("Synthetic 医学 article".into()),
+                license: Some("CC BY".into()),
+                source_uri:
+                    "s3://pmc-oa-opendata/PMC123.2/article.pdf?md5=0123456789abcdef0123456789abcdef"
+                        .into(),
+                source_last_modified: Some(-1),
+                raw_metadata_json: Some(JSON.into()),
+            }
+        );
+    }
+}
+
+#[tokio::test]
+async fn missing_and_null_optional_article_fields_remain_absent() {
+    for json in [
+        r#"{"pmcid":"PMC123","pdf_url":"s3://example/a.pdf"}"#,
+        r#"{"pmcid":"PMC123","version":null,"pmid":null,"doi":null,"title":null,"license_code":null,"pdf_url":"s3://example/a.pdf"}"#,
+    ] {
+        let source = MetadataReader::new(Cursor::new(json), METADATA_URI)
+            .read()
+            .await
+            .unwrap();
+        assert_eq!(
+            source.into_pdf_metadata(None).unwrap().unwrap(),
+            PdfMetadata {
+                raw_metadata_json: Some(json.into()),
+                ..PdfMetadata::new("PMC123", "s3://example/a.pdf")
+            }
+        );
+    }
 }
 
 #[tokio::test]
