@@ -1,8 +1,13 @@
 # PMC Arrow
 
-Convert PubMed Central (PMC) metadata and PDF files into Apache Arrow
-`RecordBatch` values. Each row contains one PDF snapshot: article metadata,
-original PDF bytes, their SHA-256 digest, and source provenance.
+Convert metadata and PDF files from the
+[PubMed Central (PMC) Article Datasets](https://registry.opendata.aws/ncbi-pmc/)
+into Apache Arrow `RecordBatch` values. Each row contains one PDF snapshot:
+article metadata, original PDF bytes, their SHA-256 digest, and source provenance.
+
+PMC is an archive of full-text biomedical and life sciences articles. See the
+[dataset documentation](https://pmc-oa-opendata.s3.amazonaws.com/README.txt)
+for the source data layout, metadata fields and access instructions.
 
 The library produces in-memory batches for your own storage pipeline. It does
 not write Arrow files, Parquet or Lance datasets, or extract text from PDFs.
