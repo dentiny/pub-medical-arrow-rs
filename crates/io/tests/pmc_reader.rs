@@ -1,26 +1,13 @@
-use std::time::{SystemTime, UNIX_EPOCH};
-
 use opendal::{services::Fs, Operator};
 use pmc_io::PmcReader;
+use tempfile::TempDir;
 
 const PDF: &[u8] = include_bytes!("../../rs/tests/fixtures/tiny.pdf");
 
-async fn operator() -> Operator {
-    let root = std::env::temp_dir().join(format!(
-        "pmc-reader-{}-{}",
-        std::process::id(),
-        SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_nanos()
-    ));
-    tokio::fs::create_dir_all(&root).await.unwrap();
-    Operator::new(Fs::default().root(root.to_str().unwrap())).unwrap()
-}
-
 #[tokio::test]
 async fn reads_pdf_referenced_by_metadata() {
-    let operator = operator().await;
+    let root = TempDir::new().unwrap();
+    let operator = Operator::new(Fs::default().root(root.path().to_str().unwrap())).unwrap();
     let uri = "s3://pmc-oa-opendata/PMC123.2/article%20%2B%2520.pdf?md5=example";
     let json = serde_json::json!({"pmcid":"PMC123", "version":2, "pdf_url":uri}).to_string();
     operator
@@ -41,5 +28,4 @@ async fn reads_pdf_referenced_by_metadata() {
         Some(json.as_str())
     );
     assert_eq!(record.metadata().source_last_modified, None);
-    operator.delete_with("/").recursive(true).await.unwrap();
 }
