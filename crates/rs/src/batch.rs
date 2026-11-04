@@ -3,18 +3,19 @@ use arrow_select::concat::concat_batches;
 
 use crate::convert::into_record_batch;
 use crate::validation::validate_config;
-use crate::{schema, Error, PdfRecord, Result};
+use crate::{schema, PdfRecord, Result};
 
-/// Limits applied to each batch before adding a record.
+/// Row and Arrow-memory thresholds for flushing a batch.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PdfBatchConfig {
     /// Maximum rows in one batch. Must be greater than zero.
     pub max_rows: usize,
-    /// Maximum summed Arrow array memory of buffered rows. Must be greater than zero.
+    /// Arrow array memory threshold for flushing. Must be greater than zero.
     ///
     /// Each incoming record is converted to Arrow and measured with
     /// [`RecordBatch::get_array_memory_size`], including array objects and buffer
-    /// capacity. The builder sums these sizes; concatenated batches may be smaller.
+    /// capacity. The builder sums these sizes after each append; the final record
+    /// may take the batch past this threshold. Concatenated batches may be smaller.
     /// Concatenation temporarily holds input and output arrays together. This limit
     /// does not include I/O, IPC or other process allocations and is not an RSS cap.
     pub max_memory_bytes: usize,
@@ -29,10 +30,10 @@ impl Default for PdfBatchConfig {
     }
 }
 
-/// Collect PDF records into Arrow batches bounded by rows and Arrow array memory.
+/// Collect PDF records, flushing at row or Arrow-memory thresholds.
 ///
-/// [`Self::append`] returns a batch when a limit is reached, or before a new record
-/// would exceed the byte limit. Call [`Self::flush`] after the last record to
+/// [`Self::append`] returns the batch after either threshold is reached. Call
+/// [`Self::flush`] after the last record to
 /// retrieve any buffered rows. Records retain their input order and duplicates.
 /// All operations are synchronous and perform no I/O.
 ///
@@ -71,37 +72,20 @@ impl PdfBatchBuilder {
         })
     }
 
-    /// Take ownership of one record, returning a batch when a limit is reached.
-    ///
-    /// If adding the record would exceed the byte limit, returns the preceding
-    /// batch and buffers the new record for the next batch, even if the new record
-    /// alone exactly reaches the byte limit. A record that cannot
-    /// fit by itself is rejected before changing or flushing buffered records.
+    /// Append one record, returning the batch when either threshold is reached.
+    /// A record exceeding the memory threshold triggers an immediate flush.
     pub fn append(&mut self, record: PdfRecord) -> Result<Option<RecordBatch>> {
         let batch = into_record_batch(record)?;
-        let row_bytes = batch.get_array_memory_size();
-        if row_bytes > self.config.max_memory_bytes {
-            return Err(Error::RecordTooLarge {
-                memory_bytes: row_bytes,
-                max_memory_bytes: self.config.max_memory_bytes,
-            });
-        }
-
-        // Subtraction is safe because the single-row check above bounds row_bytes.
-        let previous = if self.memory_bytes > self.config.max_memory_bytes - row_bytes {
-            self.flush()?
-        } else {
-            None
-        };
+        self.memory_bytes = self
+            .memory_bytes
+            .saturating_add(batch.get_array_memory_size());
         self.batches.push(batch);
-        self.memory_bytes += row_bytes;
-        if previous.is_none()
-            && (self.batches.len() == self.config.max_rows
-                || self.memory_bytes == self.config.max_memory_bytes)
+        if self.batches.len() >= self.config.max_rows
+            || self.memory_bytes >= self.config.max_memory_bytes
         {
             self.flush()
         } else {
-            Ok(previous)
+            Ok(None)
         }
     }
 

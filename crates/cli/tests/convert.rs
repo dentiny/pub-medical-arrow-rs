@@ -47,7 +47,7 @@ async fn converts_a_mirror_into_an_arrow_file() {
         ("rows", &["--batch-size", "2"][..], &[2usize, 1][..]),
         (
             "memory",
-            &["--max-rows", "32", "--max-memory-bytes", "8192"][..],
+            &["--max-rows", "32", "--max-memory-bytes", "1"][..],
             &[1usize, 1, 1][..],
         ),
     ] {
@@ -100,17 +100,6 @@ async fn converts_a_mirror_into_an_arrow_file() {
             BTreeSet::from(["PMC1".into(), "PMC2".into(), "PMC3".into()])
         );
     }
-    let oversized_output_path = root.join("oversized.arrow");
-    let output = Command::new(env!("CARGO_BIN_EXE_pmc-arrow"))
-        .arg(&mirror)
-        .arg(&oversized_output_path)
-        .args(["--max-memory-bytes", "1"])
-        .output()
-        .await
-        .unwrap();
-    assert!(!output.status.success());
-    assert!(String::from_utf8_lossy(&output.stderr).contains("max_memory_bytes"));
-    assert!(!fs::try_exists(&oversized_output_path).await.unwrap());
     fs::remove_dir_all(root).await.unwrap();
 }
 

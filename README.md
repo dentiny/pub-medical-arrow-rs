@@ -29,9 +29,10 @@ pmc-arrow s3://pmc-oa-opendata article.arrow --prefix PMC10009416.1/
 
 `--prefix` defaults to `metadata/`. Use `--parallelism 8`, `--max-rows 32`, and
 `--max-memory-bytes 67108864` to control concurrent reads, rows per batch, and
-buffered Arrow array memory bytes per batch (these are the defaults; 67108864 bytes
+the Arrow array memory flush threshold (these are the defaults; 67108864 bytes
 is 64 MiB). `--batch-size` remains an alias for `--max-rows`. All limits must be
-positive. A single row exceeding the Arrow memory limit is rejected.
+positive. Memory is checked after each append, so a batch may cross its threshold
+with the final record. A PDF larger than the threshold immediately triggers a flush.
 Records arrive in completion order; articles without PDFs are skipped.
 The output is an Arrow IPC **file**, including a final partial batch. No PDFs
 produces a valid empty file with the PMC schema. Existing output files are
@@ -153,12 +154,12 @@ example `8 32 67108864`. Omitted limits use `PdfBatchConfig::default()`
 - `read_many` uses `buffer_unordered`: records arrive as reads complete, with no
   input-order guarantee. Articles without PDFs are skipped; the first observed
   error ends the stream and drops pending reads.
-- `PdfBatchBuilder` retains arrival order and duplicates. It flushes the current
-  records before accepting a row that would exceed the byte limit. A single row
-  that cannot fit is rejected. Call `flush()` after the last record to emit any
-  remaining rows.
-- `max_memory_bytes` limits the sum of `RecordBatch::get_array_memory_size()`
-  for buffered rows. Arrow counts array structures and buffer capacities.
+- `PdfBatchBuilder` retains arrival order and duplicates. After each append it
+  returns the batch if either the row or memory threshold is reached. Call
+  `flush()` after the last record to emit any remaining rows.
+- `max_memory_bytes` is compared with the sum of
+  `RecordBatch::get_array_memory_size()` for buffered rows after each append.
+  Arrow counts array structures and buffer capacities.
   This is not a process memory or RSS limit:
   PDFs are fully read before this check, and concurrent I/O, concatenation at
   flush, and IPC output buffers require additional memory.

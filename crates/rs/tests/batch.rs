@@ -38,7 +38,7 @@ fn small_record(pmcid: &str) -> PdfRecord {
 }
 
 #[test]
-fn flushes_before_memory_limit_and_preserves_incoming_record() {
+fn flushes_at_memory_threshold_with_the_incoming_record() {
     let first = small_record("PMC1");
     let mut pdf = b"%PDF-1.7\n".to_vec();
     pdf.resize(180, b' ');
@@ -61,11 +61,7 @@ fn flushes_before_memory_limit_and_preserves_incoming_record() {
     assert!(builder.append(first.clone()).unwrap().is_none());
     assert_eq!(
         builder.append(incoming.clone()).unwrap().unwrap(),
-        to_record_batch(&[first]).unwrap()
-    );
-    assert_eq!(
-        builder.flush().unwrap().unwrap(),
-        to_record_batch(&[incoming]).unwrap()
+        to_record_batch(&[first, incoming]).unwrap()
     );
     assert!(builder.flush().unwrap().is_none());
 }

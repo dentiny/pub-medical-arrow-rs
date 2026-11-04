@@ -32,7 +32,7 @@ pub struct Args {
     )]
     pub max_rows: NonZeroUsize,
 
-    /// Maximum buffered Arrow array memory bytes per batch (not process memory)
+    /// Arrow array memory threshold for flushing (not process memory)
     #[arg(
         long,
         default_value_t = NonZeroUsize::new(PdfBatchConfig::default().max_memory_bytes).unwrap()
