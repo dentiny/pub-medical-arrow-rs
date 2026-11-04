@@ -1195,6 +1195,8 @@ dependencies = [
  "futures",
  "opendal",
  "pmc-arrow",
+ "serde",
+ "serde_json",
  "thiserror",
  "tokio",
 ]

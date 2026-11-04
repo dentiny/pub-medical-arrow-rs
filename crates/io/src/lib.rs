@@ -1,9 +1,10 @@
-//! Asynchronously read a PDF into a validated `pmc_arrow::PdfRecord`.
+//! Asynchronously read PMC metadata JSON and PDF payloads.
 //!
 //! Use [`read_pdf`] with a caller-configured OpenDAL operator, or
-//! [`PdfReader`] with an existing futures `AsyncRead` stream. Supply a
-//! source metadata explicitly. No discovery, clock
-//! reads, metadata inference or dataset writes are performed here.
+//! [`PdfReader`] with an existing futures `AsyncRead` stream. Read source JSON
+//! using [`read_metadata`] or [`MetadataReader`], then map it with
+//! [`PmcMetadata::into_pdf_metadata`]. No discovery, clock reads or dataset
+//! writes are performed here.
 //!
 //! ```no_run
 //! use pmc_arrow::{to_record_batch, PdfMetadata};
@@ -26,9 +27,34 @@
 //!     PdfReader::new(input, metadata).read().await
 //! }
 //! ```
+//!
+//! Read metadata and a caller-selected PDF object using the same operator.
+//!
+//! The PDF path is explicit: a source URL may include checksum query parameters
+//! and is not an operator-relative path.
+//! ```no_run
+//! use pmc_io::{read_metadata, read_pdf};
+//!
+//! async fn ingest_article(
+//!     operator: &opendal::Operator,
+//!     metadata_path: &str,
+//!     pdf_path: &str,
+//!     retrieved_at: i64,
+//! ) -> Result<Option<pmc_arrow::PdfRecord>, Box<dyn std::error::Error>> {
+//!     let article = read_metadata(operator, metadata_path).await?;
+//!     let Some(metadata) = article.into_pdf_metadata(retrieved_at, None)? else {
+//!         return Ok(None);
+//!     };
+//!     Ok(Some(read_pdf(operator, pdf_path, metadata).await?))
+//! }
+//! ```
 
 mod error;
+mod metadata;
+mod metadata_reader;
 mod pdf_reader;
 
-pub use error::ReadError;
+pub use error::{MetadataReadError, ReadError};
+pub use metadata::PmcMetadata;
+pub use metadata_reader::{read_metadata, MetadataReader};
 pub use pdf_reader::{read_pdf, PdfReader};

@@ -65,8 +65,8 @@ keys are not collapsed, and original whitespace is retained. Absent metadata is
 null; `{}` is a present empty object. Validation uses serde_json's nesting limit.
 
 Optional typed fields are caller-supplied independently of raw JSON. The core
-does not infer mappings or resolve disagreements. A future source adapter in
-`pmc-io` should define that mapping explicitly and preserve its source JSON.
+does not infer mappings or resolve disagreements. The PMC JSON adapter in
+`pmc-io` defines its [field mapping](metadata.md) and preserves its source JSON.
 
 ## Batches and memory
 

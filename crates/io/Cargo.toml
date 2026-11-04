@@ -1,6 +1,6 @@
 [package]
 name = "pmc-io"
-description = "Async PDF ingestion for PMC Arrow through OpenDAL and byte streams"
+description = "Async PDF and metadata ingestion for PMC Arrow through OpenDAL and byte streams"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -12,6 +12,8 @@ pmc-arrow.workspace = true
 opendal.workspace = true
 futures.workspace = true
 thiserror.workspace = true
+serde.workspace = true
+serde_json.workspace = true
 
 [dev-dependencies]
 arrow-array.workspace = true
