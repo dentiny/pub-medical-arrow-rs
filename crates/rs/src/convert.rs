@@ -2,12 +2,13 @@ use std::sync::Arc;
 
 use arrow_array::builder::LargeBinaryBuilder;
 use arrow_array::{
-    ArrayRef, LargeStringArray, RecordBatch, StringArray, TimestampMicrosecondArray, UInt32Array,
-    UInt64Array,
+    ArrayRef, LargeBinaryArray, LargeStringArray, RecordBatch, StringArray,
+    TimestampMicrosecondArray, UInt32Array, UInt64Array,
 };
+use arrow_buffer::{Buffer, OffsetBuffer};
 
 use crate::validation::validate_batch_capacity;
-use crate::{schema, PdfRecord, Result};
+use crate::{schema, PdfMetadata, PdfRecord, Result};
 
 /// Convert validated records into one Arrow batch, preserving order and duplicates.
 ///
@@ -25,42 +26,65 @@ pub fn to_record_batch(records: &[PdfRecord]) -> Result<RecordBatch> {
         pdf.append_value(record.pdf_bytes());
     }
 
+    make_batch(
+        records.iter().map(PdfRecord::metadata),
+        UInt64Array::from_iter_values(records.iter().map(PdfRecord::pdf_size_bytes)),
+        pdf.finish(),
+    )
+}
+
+/// Move the PDF allocation into Arrow, leaving concatenation as its only copy.
+pub(crate) fn into_record_batch(record: PdfRecord) -> Result<RecordBatch> {
+    validate_batch_capacity(std::slice::from_ref(&record))?;
+    let (metadata, bytes) = record.into_parts();
+    let length = bytes.len();
+    let pdf = LargeBinaryArray::new(
+        OffsetBuffer::new(vec![0, length as i64].into()),
+        Buffer::from_vec(bytes),
+        None,
+    );
+    make_batch(
+        std::iter::once(&metadata),
+        UInt64Array::from(vec![length as u64]),
+        pdf,
+    )
+}
+
+fn make_batch<'a>(
+    metadata: impl Iterator<Item = &'a PdfMetadata> + Clone,
+    pdf_sizes: UInt64Array,
+    pdf: LargeBinaryArray,
+) -> Result<RecordBatch> {
     let columns: Vec<ArrayRef> = vec![
         Arc::new(StringArray::from_iter_values(
-            records.iter().map(|r| r.metadata().pmcid.as_str()),
+            metadata.clone().map(|m| m.pmcid.as_str()),
         )),
         Arc::new(UInt32Array::from_iter(
-            records.iter().map(|r| r.metadata().pmc_version),
+            metadata.clone().map(|m| m.pmc_version),
         )),
         Arc::new(StringArray::from_iter(
-            records.iter().map(|r| r.metadata().pmid.as_deref()),
+            metadata.clone().map(|m| m.pmid.as_deref()),
         )),
         Arc::new(StringArray::from_iter(
-            records.iter().map(|r| r.metadata().doi.as_deref()),
+            metadata.clone().map(|m| m.doi.as_deref()),
         )),
         Arc::new(LargeStringArray::from_iter(
-            records.iter().map(|r| r.metadata().title.as_deref()),
+            metadata.clone().map(|m| m.title.as_deref()),
         )),
         Arc::new(StringArray::from_iter(
-            records.iter().map(|r| r.metadata().license.as_deref()),
+            metadata.clone().map(|m| m.license.as_deref()),
         )),
         Arc::new(StringArray::from_iter_values(
-            records.iter().map(|r| r.metadata().source_uri.as_str()),
+            metadata.clone().map(|m| m.source_uri.as_str()),
         )),
         Arc::new(
-            TimestampMicrosecondArray::from_iter(
-                records.iter().map(|r| r.metadata().source_last_modified),
-            )
-            .with_timezone("UTC"),
+            TimestampMicrosecondArray::from_iter(metadata.clone().map(|m| m.source_last_modified))
+                .with_timezone("UTC"),
         ),
-        Arc::new(UInt64Array::from_iter_values(
-            records.iter().map(PdfRecord::pdf_size_bytes),
-        )),
-        Arc::new(pdf.finish()),
+        Arc::new(pdf_sizes),
+        Arc::new(pdf),
         Arc::new(LargeStringArray::from_iter(
-            records
-                .iter()
-                .map(|r| r.metadata().raw_metadata_json.as_deref()),
+            metadata.map(|m| m.raw_metadata_json.as_deref()),
         )),
     ];
     Ok(RecordBatch::try_new(schema(), columns)?)

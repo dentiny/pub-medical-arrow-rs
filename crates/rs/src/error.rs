@@ -15,8 +15,10 @@ pub enum Error {
     InvalidMetadataJson(#[from] serde_json::Error),
     #[error("raw_metadata_json must contain a JSON object")]
     MetadataNotObject,
-    #[error("batch_size must be greater than zero")]
+    #[error("max_rows must be greater than zero")]
     InvalidBatchSize,
+    #[error("max_memory_bytes must be greater than zero")]
+    InvalidBatchMemorySize,
     #[error("batch exceeds the Arrow offset or allocation limit for {0}")]
     BatchTooLarge(&'static str),
     #[error(transparent)]

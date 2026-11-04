@@ -1,17 +1,49 @@
 use arrow_array::RecordBatch;
+use arrow_select::concat::concat_batches;
 
-use crate::{to_record_batch, Error, PdfRecord, Result};
+use crate::convert::into_record_batch;
+use crate::validation::validate_config;
+use crate::{schema, PdfRecord, Result};
 
-/// Collect PDF records into Arrow batches containing at most `batch_size` rows.
+/// Row and Arrow-memory thresholds for flushing a batch.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PdfBatchConfig {
+    /// Maximum rows in one batch. Must be greater than zero.
+    pub max_rows: usize,
+    /// Arrow array memory threshold for flushing. Must be greater than zero.
+    ///
+    /// Each incoming record is converted to Arrow and measured with
+    /// [`RecordBatch::get_array_memory_size`], including array objects and buffer
+    /// capacity. The builder sums these sizes after each append; the final record
+    /// may take the batch past this threshold. Concatenated batches may be smaller.
+    /// Concatenation temporarily holds input and output arrays together. This limit
+    /// does not include I/O, IPC or other process allocations and is not an RSS cap.
+    pub max_memory_bytes: usize,
+}
+
+impl Default for PdfBatchConfig {
+    fn default() -> Self {
+        Self {
+            max_rows: 32,
+            max_memory_bytes: 64 * 1024 * 1024,
+        }
+    }
+}
+
+/// Collect PDF records, flushing at row or Arrow-memory thresholds.
 ///
-/// [`Self::append`] returns a batch whenever it fills. Call [`Self::flush`] after
-/// the last record to retrieve a partial batch. Records retain their input order
-/// and duplicates. All operations are synchronous and perform no I/O.
+/// [`Self::append`] returns the batch after either threshold is reached. Call
+/// [`Self::flush`] after the last record to
+/// retrieve any buffered rows. Records retain their input order and duplicates.
+/// All operations are synchronous and perform no I/O.
 ///
 /// ```
-/// use pmc_arrow::{PdfBatchBuilder, PdfMetadata, PdfRecord};
+/// use pmc_arrow::{PdfBatchBuilder, PdfBatchConfig, PdfMetadata, PdfRecord};
 ///
-/// let mut builder = PdfBatchBuilder::new(2)?;
+/// let mut builder = PdfBatchBuilder::new(PdfBatchConfig {
+///     max_rows: 2,
+///     ..PdfBatchConfig::default()
+/// })?;
 /// // Header-only bytes for this example, not a complete PDF document.
 /// let record = PdfRecord::try_new(
 ///     b"%PDF-1.7\nexample".to_vec(),
@@ -24,26 +56,33 @@ use crate::{to_record_batch, Error, PdfRecord, Result};
 /// # Ok::<(), pmc_arrow::Error>(())
 /// ```
 pub struct PdfBatchBuilder {
-    records: Vec<PdfRecord>,
-    batch_size: usize,
+    batches: Vec<RecordBatch>,
+    config: PdfBatchConfig,
+    memory_bytes: usize,
 }
 
 impl PdfBatchBuilder {
-    /// Create an empty builder with a positive maximum number of rows per batch.
-    pub fn new(batch_size: usize) -> Result<Self> {
-        if batch_size == 0 {
-            return Err(Error::InvalidBatchSize);
-        }
+    /// Create an empty builder with positive row and Arrow-memory limits.
+    pub fn new(config: PdfBatchConfig) -> Result<Self> {
+        validate_config(&config)?;
         Ok(Self {
-            records: Vec::new(),
-            batch_size,
+            batches: Vec::new(),
+            config,
+            memory_bytes: 0,
         })
     }
 
-    /// Take ownership of one record, returning a batch when it fills.
+    /// Append one record, returning the batch when either threshold is reached.
+    /// A record exceeding the memory threshold triggers an immediate flush.
     pub fn append(&mut self, record: PdfRecord) -> Result<Option<RecordBatch>> {
-        self.records.push(record);
-        if self.records.len() == self.batch_size {
+        let batch = into_record_batch(record)?;
+        self.memory_bytes = self
+            .memory_bytes
+            .saturating_add(batch.get_array_memory_size());
+        self.batches.push(batch);
+        if self.batches.len() >= self.config.max_rows
+            || self.memory_bytes >= self.config.max_memory_bytes
+        {
             self.flush()
         } else {
             Ok(None)
@@ -52,14 +91,19 @@ impl PdfBatchBuilder {
 
     /// Drain buffered records into a batch, or return `None` when empty.
     ///
-    /// Conversion reuses [`to_record_batch`]. Buffered records are released even
-    /// if conversion fails; the builder is empty and can be reused afterward.
+    /// A singleton is returned directly; multiple rows are concatenated once.
+    /// Buffered batches and their memory count are reset even if concatenation
+    /// fails; the builder can be reused.
     pub fn flush(&mut self) -> Result<Option<RecordBatch>> {
-        if self.records.is_empty() {
+        if self.batches.is_empty() {
             return Ok(None);
         }
-        let batch = to_record_batch(&self.records);
-        self.records.clear();
-        batch.map(Some)
+        self.memory_bytes = 0;
+        if self.batches.len() == 1 {
+            return Ok(self.batches.pop());
+        }
+        let batch = concat_batches(&schema(), &self.batches);
+        self.batches.clear();
+        Ok(Some(batch?))
     }
 }

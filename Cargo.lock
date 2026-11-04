@@ -1362,8 +1362,10 @@ name = "pmc-arrow"
 version = "0.1.0"
 dependencies = [
  "arrow-array",
+ "arrow-buffer",
  "arrow-ipc",
  "arrow-schema",
+ "arrow-select",
  "serde_json",
  "thiserror",
  "tokio",
