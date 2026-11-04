@@ -1,7 +1,7 @@
 use opendal::Operator;
 use pmc_arrow::PdfRecord;
 
-use crate::validation::pdf_path;
+use crate::validation::validate_pdf_path;
 use crate::{read_metadata, read_pdf, PmcReadError};
 
 /// Read an article's metadata and its referenced PDF through one operator.
@@ -29,7 +29,7 @@ impl PmcReader {
         let Some(metadata) = article.into_pdf_metadata(None)? else {
             return Ok(None);
         };
-        let path = pdf_path(&metadata.source_uri)?;
+        let path = validate_pdf_path(&metadata.source_uri)?;
         Ok(Some(read_pdf(&self.operator, &path, metadata).await?))
     }
 }

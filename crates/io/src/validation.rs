@@ -3,7 +3,7 @@ use percent_encoding::percent_decode_str;
 use crate::PmcReadError;
 
 /// Resolve a source PDF URL to its path in the PMC bucket or a matching mirror.
-pub(crate) fn pdf_path(source_uri: &str) -> Result<String, PmcReadError> {
+pub(crate) fn validate_pdf_path(source_uri: &str) -> Result<String, PmcReadError> {
     let invalid = || PmcReadError::InvalidPdfUrl {
         source_uri: source_uri.into(),
     };
