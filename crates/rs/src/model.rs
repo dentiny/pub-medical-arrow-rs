@@ -49,7 +49,8 @@ impl PdfMetadata {
 ///
 /// Fields are private to prevent bytes and metadata from changing after
 /// validation. Construction takes ownership of the PDF vector without copying.
-/// Arrow conversion copies the bytes into a contiguous column buffer.
+/// Borrowed Arrow conversion copies the bytes into a contiguous column buffer;
+/// the batch builder takes ownership of the allocation instead.
 #[derive(Clone)]
 pub struct PdfRecord {
     metadata: PdfMetadata,
@@ -114,6 +115,10 @@ impl PdfRecord {
 
     pub fn pdf_size_bytes(&self) -> u64 {
         self.pdf_bytes.len() as u64
+    }
+
+    pub(crate) fn into_parts(self) -> (PdfMetadata, Vec<u8>) {
+        (self.metadata, self.pdf_bytes)
     }
 }
 

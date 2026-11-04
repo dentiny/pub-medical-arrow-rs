@@ -19,9 +19,9 @@ pub enum Error {
     InvalidBatchSize,
     #[error("max_memory_bytes must be greater than zero")]
     InvalidBatchMemorySize,
-    #[error("record requires an estimated {estimated_memory_bytes} bytes, exceeding max_memory_bytes {max_memory_bytes}")]
+    #[error("record uses {memory_bytes} Arrow array bytes, exceeding max_memory_bytes {max_memory_bytes}")]
     RecordTooLarge {
-        estimated_memory_bytes: usize,
+        memory_bytes: usize,
         max_memory_bytes: usize,
     },
     #[error("batch exceeds the Arrow offset or allocation limit for {0}")]

@@ -43,10 +43,19 @@ fn flushes_before_memory_limit_and_preserves_incoming_record() {
     let mut pdf = b"%PDF-1.7\n".to_vec();
     pdf.resize(180, b' ');
     let incoming = PdfRecord::try_new(pdf, PdfMetadata::new("PMC2", "x")).unwrap();
-    // Incoming alone estimates 44 + 71 + 180 + 4 + 1 = 300 bytes.
+    let mut single_row_builder = PdfBatchBuilder::new(PdfBatchConfig {
+        max_rows: 1,
+        max_memory_bytes: usize::MAX,
+    })
+    .unwrap();
+    let incoming_bytes = single_row_builder
+        .append(incoming.clone())
+        .unwrap()
+        .unwrap()
+        .get_array_memory_size();
     let mut builder = PdfBatchBuilder::new(PdfBatchConfig {
         max_rows: 10,
-        max_memory_bytes: 300,
+        max_memory_bytes: incoming_bytes,
     })
     .unwrap();
     assert!(builder.append(first.clone()).unwrap().is_none());

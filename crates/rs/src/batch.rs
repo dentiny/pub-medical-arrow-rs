@@ -1,24 +1,21 @@
 use arrow_array::RecordBatch;
+use arrow_select::concat::concat_batches;
 
-use crate::{to_record_batch, Error, PdfRecord, Result};
-
-// Five Utf8 and three LargeUtf8/LargeBinary columns each need an initial offset.
-const INITIAL_OFFSET_BYTES: usize = 5 * 4 + 3 * 8;
-// Row offsets, three fixed-width values, and one byte per nullable column.
-const ROW_OVERHEAD_BYTES: usize = INITIAL_OFFSET_BYTES + 4 + 8 + 8 + 7;
+use crate::convert::into_record_batch;
+use crate::{schema, Error, PdfRecord, Result};
 
 /// Limits applied to each batch before adding a record.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PdfBatchConfig {
     /// Maximum rows in one batch. Must be greater than zero.
     pub max_rows: usize,
-    /// Maximum estimated Arrow buffer bytes in one batch. Must be greater than zero.
+    /// Maximum summed Arrow array memory of buffered rows. Must be greater than zero.
     ///
-    /// The estimate includes PDF and metadata string lengths, offsets, fixed-width
-    /// values, and a conservative byte per nullable column per row. It excludes
-    /// allocation capacity, schema/array objects, retained source records, and I/O
-    /// or IPC buffers. Conversion temporarily holds source records and Arrow data together;
-    /// this is a batching threshold, not a process memory or RSS limit.
+    /// Each incoming record is converted to Arrow and measured with
+    /// [`RecordBatch::get_array_memory_size`], including array objects and buffer
+    /// capacity. The builder sums these sizes; concatenated batches may be smaller.
+    /// Concatenation temporarily holds input and output arrays together. This limit
+    /// does not include I/O, IPC or other process allocations and is not an RSS cap.
     pub max_memory_bytes: usize,
 }
 
@@ -31,7 +28,7 @@ impl Default for PdfBatchConfig {
     }
 }
 
-/// Collect PDF records into Arrow batches bounded by rows and estimated bytes.
+/// Collect PDF records into Arrow batches bounded by rows and Arrow array memory.
 ///
 /// [`Self::append`] returns a batch when a limit is reached, or before a new record
 /// would exceed the byte limit. Call [`Self::flush`] after the last record to
@@ -57,13 +54,13 @@ impl Default for PdfBatchConfig {
 /// # Ok::<(), pmc_arrow::Error>(())
 /// ```
 pub struct PdfBatchBuilder {
-    records: Vec<PdfRecord>,
+    batches: Vec<RecordBatch>,
     config: PdfBatchConfig,
-    estimated_memory_bytes: usize,
+    memory_bytes: usize,
 }
 
 impl PdfBatchBuilder {
-    /// Create an empty builder with positive row and estimated-byte limits.
+    /// Create an empty builder with positive row and Arrow-memory limits.
     pub fn new(config: PdfBatchConfig) -> Result<Self> {
         if config.max_rows == 0 {
             return Err(Error::InvalidBatchSize);
@@ -72,9 +69,9 @@ impl PdfBatchBuilder {
             return Err(Error::InvalidBatchMemorySize);
         }
         Ok(Self {
-            records: Vec::new(),
+            batches: Vec::new(),
             config,
-            estimated_memory_bytes: INITIAL_OFFSET_BYTES,
+            memory_bytes: 0,
         })
     }
 
@@ -85,28 +82,26 @@ impl PdfBatchBuilder {
     /// alone exactly reaches the byte limit. A record that cannot
     /// fit by itself is rejected before changing or flushing buffered records.
     pub fn append(&mut self, record: PdfRecord) -> Result<Option<RecordBatch>> {
-        let row_bytes = estimated_record_bytes(&record)?;
-        let single_row_bytes = INITIAL_OFFSET_BYTES
-            .checked_add(row_bytes)
-            .ok_or(Error::BatchTooLarge("estimated batch memory"))?;
-        if single_row_bytes > self.config.max_memory_bytes {
+        let batch = into_record_batch(record)?;
+        let row_bytes = batch.get_array_memory_size();
+        if row_bytes > self.config.max_memory_bytes {
             return Err(Error::RecordTooLarge {
-                estimated_memory_bytes: single_row_bytes,
+                memory_bytes: row_bytes,
                 max_memory_bytes: self.config.max_memory_bytes,
             });
         }
 
         // Subtraction is safe because the single-row check above bounds row_bytes.
-        let previous = if self.estimated_memory_bytes > self.config.max_memory_bytes - row_bytes {
+        let previous = if self.memory_bytes > self.config.max_memory_bytes - row_bytes {
             self.flush()?
         } else {
             None
         };
-        self.records.push(record);
-        self.estimated_memory_bytes += row_bytes;
+        self.batches.push(batch);
+        self.memory_bytes += row_bytes;
         if previous.is_none()
-            && (self.records.len() == self.config.max_rows
-                || self.estimated_memory_bytes == self.config.max_memory_bytes)
+            && (self.batches.len() == self.config.max_rows
+                || self.memory_bytes == self.config.max_memory_bytes)
         {
             self.flush()
         } else {
@@ -116,35 +111,19 @@ impl PdfBatchBuilder {
 
     /// Drain buffered records into a batch, or return `None` when empty.
     ///
-    /// Conversion reuses [`to_record_batch`]. Buffered records and their estimated
-    /// byte count are reset even if conversion fails; the builder can be reused.
+    /// A singleton is returned directly; multiple rows are concatenated once.
+    /// Buffered batches and their memory count are reset even if concatenation
+    /// fails; the builder can be reused.
     pub fn flush(&mut self) -> Result<Option<RecordBatch>> {
-        if self.records.is_empty() {
+        if self.batches.is_empty() {
             return Ok(None);
         }
-        let batch = to_record_batch(&self.records);
-        self.records.clear();
-        self.estimated_memory_bytes = INITIAL_OFFSET_BYTES;
-        batch.map(Some)
+        self.memory_bytes = 0;
+        if self.batches.len() == 1 {
+            return Ok(self.batches.pop());
+        }
+        let batch = concat_batches(&schema(), &self.batches);
+        self.batches.clear();
+        Ok(Some(batch?))
     }
-}
-
-fn estimated_record_bytes(record: &PdfRecord) -> Result<usize> {
-    let metadata = record.metadata();
-    [
-        record.pdf_bytes().len(),
-        metadata.pmcid.len(),
-        metadata.source_uri.len(),
-        metadata.pmid.as_deref().map_or(0, str::len),
-        metadata.doi.as_deref().map_or(0, str::len),
-        metadata.title.as_deref().map_or(0, str::len),
-        metadata.license.as_deref().map_or(0, str::len),
-        metadata.raw_metadata_json.as_deref().map_or(0, str::len),
-    ]
-    .into_iter()
-    .try_fold(ROW_OVERHEAD_BYTES, |total, length| {
-        total
-            .checked_add(length)
-            .ok_or(Error::BatchTooLarge("estimated batch memory"))
-    })
 }
