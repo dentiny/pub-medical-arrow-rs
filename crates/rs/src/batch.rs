@@ -2,6 +2,7 @@ use arrow_array::RecordBatch;
 use arrow_select::concat::concat_batches;
 
 use crate::convert::into_record_batch;
+use crate::validation::validate_config;
 use crate::{schema, Error, PdfRecord, Result};
 
 /// Limits applied to each batch before adding a record.
@@ -62,12 +63,7 @@ pub struct PdfBatchBuilder {
 impl PdfBatchBuilder {
     /// Create an empty builder with positive row and Arrow-memory limits.
     pub fn new(config: PdfBatchConfig) -> Result<Self> {
-        if config.max_rows == 0 {
-            return Err(Error::InvalidBatchSize);
-        }
-        if config.max_memory_bytes == 0 {
-            return Err(Error::InvalidBatchMemorySize);
-        }
+        validate_config(&config)?;
         Ok(Self {
             batches: Vec::new(),
             config,

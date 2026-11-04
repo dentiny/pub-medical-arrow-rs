@@ -1,4 +1,14 @@
-use crate::{Error, PdfRecord, Result};
+use crate::{Error, PdfBatchConfig, PdfRecord, Result};
+
+pub(crate) fn validate_config(config: &PdfBatchConfig) -> Result<()> {
+    if config.max_rows == 0 {
+        return Err(Error::InvalidBatchSize);
+    }
+    if config.max_memory_bytes == 0 {
+        return Err(Error::InvalidBatchMemorySize);
+    }
+    Ok(())
+}
 
 /// Validate Arrow offset and allocation capacities for a batch.
 ///
