@@ -85,7 +85,6 @@ cargo run --locked -p pmc-io --example pmc -- /path/to/pmc-mirror metadata/PMC12
 
 For multiple articles, `reader.read_many(paths, parallelism)` consumes a metadata
 path stream and yields records in input order with bounded concurrent reads.
-See [concurrent article reads](docs/parallel.md).
 
 ## Read through OpenDAL
 
