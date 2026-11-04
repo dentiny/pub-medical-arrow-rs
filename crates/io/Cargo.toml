@@ -18,5 +18,6 @@ percent-encoding.workspace = true
 
 [dev-dependencies]
 arrow-array.workspace = true
+tempfile.workspace = true
 opendal = { workspace = true, features = ["services-fs"] }
 tokio = { workspace = true, features = ["macros", "rt", "fs", "io-std", "io-util"] }

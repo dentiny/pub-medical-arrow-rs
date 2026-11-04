@@ -2,26 +2,18 @@ use std::sync::{
     atomic::{AtomicUsize, Ordering},
     Arc,
 };
-use std::time::{SystemTime, UNIX_EPOCH};
 
 use futures::{pin_mut, stream, StreamExt, TryStreamExt};
 use opendal::{services::Fs, Operator};
 use pmc_io::PmcReader;
+use tempfile::TempDir;
 
 const PDF: &[u8] = include_bytes!("../../rs/tests/fixtures/tiny.pdf");
 
 #[tokio::test]
 async fn reads_records_with_bounded_prefetch_and_skips_articles_without_pdf() {
-    let root = std::env::temp_dir().join(format!(
-        "pmc-parallel-{}-{}",
-        std::process::id(),
-        SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_nanos()
-    ));
-    tokio::fs::create_dir_all(&root).await.unwrap();
-    let operator = Operator::new(Fs::default().root(root.to_str().unwrap())).unwrap();
+    let root = TempDir::new().unwrap();
+    let operator = Operator::new(Fs::default().root(root.path().to_str().unwrap())).unwrap();
     for id in [3, 1, 2] {
         let json = serde_json::json!({
             "pmcid": format!("PMC{id}"),
@@ -70,5 +62,4 @@ async fn reads_records_with_bounded_prefetch_and_skips_articles_without_pdf() {
     assert_eq!(ids, ["PMC1", "PMC2", "PMC3"]);
     assert!(remaining.iter().all(|r| r.pdf_bytes() == PDF));
     assert_eq!(requested.load(Ordering::SeqCst), 4);
-    operator.delete_with("/").recursive(true).await.unwrap();
 }

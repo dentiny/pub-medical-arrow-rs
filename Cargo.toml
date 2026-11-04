@@ -25,5 +25,6 @@ serde_json = { version = "1", features = ["raw_value"] }
 thiserror = "2"
 futures = { version = "0.3", default-features = false, features = ["std", "async-await"] }
 tokio = "1"
+tempfile = "3"
 pmc-arrow = { path = "crates/rs", version = "0.1.0" }
 pmc-io = { path = "crates/io", version = "0.1.0" }
