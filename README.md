@@ -14,7 +14,7 @@ Arrow IPC files.
 
 | Crate | Use it to |
 | --- | --- |
-| `pmc-arrow` (`crates/rs`) | Validate PDF records and convert them into Arrow batches |
+| [pmc-arrow 0.1.0](https://crates.io/crates/pmc-arrow/0.1.0) (`crates/rs`) | Validate PDF records and convert them into Arrow batches |
 | `pmc-io` (`crates/io`) | Discover PMC metadata and asynchronously read metadata and PDFs through OpenDAL |
 | `pmc-cli` (`crates/cli`) | Convert a PMC source into an Arrow IPC file with the `pmc-arrow` command |
 
@@ -49,7 +49,16 @@ cargo run --locked -p pmc-arrow --example convert -- PMC123 crates/rs/tests/fixt
 
 This builds one row with 9 columns and prints a summary. No download is needed.
 
-Add these dependencies to your application, replacing the checkout paths:
+Use [pmc-arrow 0.1.0 from crates.io](https://crates.io/crates/pmc-arrow/0.1.0)
+in your application:
+
+```toml
+[dependencies]
+pmc-arrow = "0.1.0"
+```
+
+For the I/O examples, `pmc-io` is not published yet. Use both crates from the
+same local checkout so their shared types match:
 
 ```toml
 [dependencies]
