@@ -15,7 +15,7 @@ Arrow IPC files.
 | Crate | Use it to |
 | --- | --- |
 | [pmc-arrow 0.1.0](https://crates.io/crates/pmc-arrow/0.1.0) (`crates/rs`) | Validate PDF records and convert them into Arrow batches |
-| `pmc-io` (`crates/io`) | Discover PMC metadata and asynchronously read metadata and PDFs through OpenDAL |
+| [pmc-io 0.1.0](https://crates.io/crates/pmc-io/0.1.0) (`crates/io`) | Discover PMC metadata and asynchronously read metadata and PDFs through OpenDAL |
 | `pmc-cli` (`crates/cli`) | Convert a PMC source into an Arrow IPC file with the `pmc-arrow` command |
 
 ## CLI
@@ -57,13 +57,12 @@ in your application:
 pmc-arrow = "0.1.0"
 ```
 
-For the I/O examples, `pmc-io` is not published yet. Use both crates from the
-same local checkout so their shared types match:
+For the I/O examples, use both crates from crates.io:
 
 ```toml
 [dependencies]
-pmc-arrow = { path = "/path/to/pub-medical-arrow-rs/crates/rs" }
-pmc-io = { path = "/path/to/pub-medical-arrow-rs/crates/io" }
+pmc-arrow = "0.1.0"
+pmc-io = "0.1.0"
 opendal = { version = "0.59.3", default-features = false, features = ["services-fs", "executors-tokio", "http-transport-reqwest"] }
 tokio = { version = "1", features = ["macros", "rt"] }
 ```
