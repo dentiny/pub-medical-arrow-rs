@@ -1,11 +1,27 @@
 [package]
 name = "pmc-cli"
-description = "Reserved command-line entry point for PMC ingestion"
+description = "Convert PMC metadata and PDFs into Arrow IPC files"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 readme.workspace = true
 publish = false
 
+[[bin]]
+name = "pmc-arrow"
+path = "src/main.rs"
+
 [dependencies]
+anyhow.workspace = true
+arrow-array.workspace = true
+arrow-ipc.workspace = true
+clap.workspace = true
+futures.workspace = true
+opendal = { workspace = true, features = ["services-fs", "services-s3"] }
+pmc-arrow.workspace = true
 pmc-io.workspace = true
+tokio = { workspace = true, features = ["macros", "rt", "fs", "io-std", "io-util"] }
+
+[dev-dependencies]
+serde_json.workspace = true
+tokio = { workspace = true, features = ["process"] }

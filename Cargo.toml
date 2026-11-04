@@ -9,6 +9,8 @@ license = "MIT"
 readme = "README.md"
 
 [workspace.dependencies]
+anyhow = "1"
+clap = { version = "4", features = ["derive"] }
 arrow-array = "58"
 arrow-schema = "58"
 arrow-ipc = "58"

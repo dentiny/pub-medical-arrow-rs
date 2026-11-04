@@ -9,14 +9,31 @@ PMC is an archive of full-text biomedical and life sciences articles. See the
 [dataset documentation](https://pmc-oa-opendata.s3.amazonaws.com/README.txt)
 for the source data layout, metadata fields and access instructions.
 
-The library produces in-memory batches for your own storage pipeline. It does
-not write Arrow files, Parquet or Lance datasets, or extract text from PDFs.
+Use the Rust libraries in your own storage pipeline, or the CLI to write
+Arrow IPC files.
 
 | Crate | Use it to |
 | --- | --- |
 | `pmc-arrow` (`crates/rs`) | Validate PDF records and convert them into Arrow batches |
 | `pmc-io` (`crates/io`) | Discover PMC metadata and asynchronously read metadata and PDFs through OpenDAL |
-| `pmc-cli` (`crates/cli`) | Reserved for a future CLI; currently a placeholder |
+| `pmc-cli` (`crates/cli`) | Convert a PMC source into an Arrow IPC file with the `pmc-arrow` command |
+
+## CLI
+
+Convert a local mirror, or one article's folder in the public PMC bucket:
+
+```sh
+pmc-arrow /path/to/pmc-mirror output.arrow
+pmc-arrow s3://pmc-oa-opendata article.arrow --prefix PMC10009416.1/
+```
+
+`--prefix` defaults to `metadata/`. Use `--parallelism 8` and `--batch-size 32`
+to control concurrent reads and rows per batch (these are the defaults).
+Records arrive in completion order; articles without PDFs are skipped.
+The output is an Arrow IPC **file**, including a final partial batch. No PDFs
+produces a valid empty file with the PMC schema. Existing output files are
+never overwritten; on a conversion error, the incomplete output is removed.
+Use `pmc-arrow --help` for all options.
 
 ## Quick start
 
